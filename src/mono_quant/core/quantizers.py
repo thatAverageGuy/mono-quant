@@ -317,6 +317,9 @@ def static_quantize(
     skip_layer_names: Optional[List[str]] = None,
     skip_param_threshold: int = 0,
     group_size: int = 128,
+    accuracy_warning: str = "warn",
+    sqnr_warning_threshold: float = 20.0,
+    sqnr_error_threshold: float = 10.0,
 ) -> Tuple[nn.Module, QuantizationInfo]:
     """
     Statically quantize a PyTorch model using calibration data.
@@ -374,6 +377,14 @@ def static_quantize(
                               a default threshold of 512 is recommended.
         group_size: Group size for INT4 quantization. Default is 128, which is
                     the industry standard used by AWQ, GPTQ, and HuggingFace.
+        accuracy_warning: How to handle accuracy warnings. Options:
+                         - "warn": Issue warning and continue (default)
+                         - "error": Raise exception on critical warnings
+                         - "ignore": Silent, no warnings
+        sqnr_warning_threshold: SQNR below this triggers warning (dB).
+                                Default is 20.0 dB.
+        sqnr_error_threshold: SQNR below this triggers critical error (dB).
+                              Default is 10.0 dB.
 
     Returns:
         A tuple of (quantized_model, quantization_info):
@@ -618,6 +629,17 @@ def static_quantize(
         info = _run_validation_and_update_info(
             original_model, model_copy, info, on_failure
         )
+
+    # Run accuracy warning check
+    from mono_quant.io.validation import check_accuracy_warnings
+    info = check_accuracy_warnings(
+        info,
+        sqnr_warning_threshold=sqnr_warning_threshold,
+        sqnr_error_threshold=sqnr_error_threshold,
+        all_layers_quantized_warning=True,
+        low_calibration_warning=True,
+        on_failure=accuracy_warning,
+    )
 
     return model_copy, info
 
