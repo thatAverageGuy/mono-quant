@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 1 of 4 (Core Quantization Foundation)
-Plan: 1 of 4 (Foundation)
+Plan: 2 of 4 (Foundation)
 Status: In progress
-Last activity: 2026-02-03 — Completed 01-01-PLAN.md
+Last activity: 2026-02-03 — Completed 01-02-PLAN.md
 
-Progress: [██░░░░░░░░] 25%
+Progress: [████░░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 12 min
-- Total execution time: 0.2 hours
+- Total plans completed: 2
+- Average duration: 12.5 min
+- Total execution time: 0.4 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 | 1 | 4 | 12 min |
+| 1 | 2 | 4 | 12.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (12 min)
-- Trend: Off to strong start
+- Last 5 plans: 01-01 (12 min), 01-02 (13 min)
+- Trend: On track
 
 *Updated after each plan completion*
 
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 - [01-01]: Torch-only dependency enforced via pyproject.toml (AGN-04)
 - [01-01]: Model copying via deepcopy to preserve original (CONTEXT.md requirement)
 - [01-01]: Configuration priority pattern: kwargs > config > defaults
+- [01-02]: Per-channel reduction over all dimensions EXCEPT axis (standard for nn.Linear/Conv2d)
+- [01-02]: Scale clamped BEFORE zero_point calculation to handle zero-range edge case
+- [01-02]: qint4 removed from dtype range - PyTorch 2.10 doesn't support it yet
 
 ### Pending Todos
 
@@ -60,5 +63,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 01-01-PLAN.md (package structure, config, input handlers)
+Stopped at: Completed 01-02-PLAN.md (quantization schemes and mapper functions)
 Resume file: None
