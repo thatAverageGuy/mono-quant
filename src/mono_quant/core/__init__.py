@@ -14,6 +14,8 @@ from mono_quant.core.quantizers import (
     quantize_weight_int8,
     quantize_weight_fp16,
     dequantize_weight,
+    dynamic_quantize,
+    test_models_from_any_source,
 )
 
 __all__ = [
@@ -29,4 +31,7 @@ __all__ = [
     "quantize_weight_int8",
     "quantize_weight_fp16",
     "dequantize_weight",
+    # Dynamic quantization
+    "dynamic_quantize",
+    "test_models_from_any_source",
 ]
