@@ -100,41 +100,47 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| AGN-01 | Phase 1 | Pending |
+| AGN-02 | Phase 1 | Pending |
+| AGN-03 | Phase 1 | Pending |
+| AGN-04 | Phase 1 | Pending |
 | QCORE-01 | Phase 1 | Pending |
-| QCORE-02 | Phase 3 | Pending |
 | QCORE-03 | Phase 1 | Pending |
 | QCORE-04 | Phase 1 | Pending |
-| QCORE-05 | Phase 2 | Pending |
-| QCORE-06 | Phase 2 | Pending |
 | QCORE-07 | Phase 1 | Pending |
 | CAL-01 | Phase 2 | Pending |
-| CAL-02 | Phase 3 | Pending |
-| CAL-03 | Phase 3 | Pending |
-| CAL-04 | Phase 3 | Pending |
 | CAL-05 | Phase 2 | Pending |
-| UI-01 | Phase 4 | Pending |
-| UI-02 | Phase 4 | Pending |
-| UI-03 | Phase 4 | Pending |
-| UI-04 | Phase 4 | Pending |
 | IO-01 | Phase 2 | Pending |
 | IO-02 | Phase 2 | Pending |
 | IO-03 | Phase 2 | Pending |
 | IO-04 | Phase 2 | Pending |
 | IO-05 | Phase 2 | Pending |
+| QCORE-05 | Phase 2 | Pending |
+| QCORE-06 | Phase 2 | Pending |
 | VAL-01 | Phase 2 | Pending |
 | VAL-02 | Phase 2 | Pending |
 | VAL-03 | Phase 2 | Pending |
+| CAL-02 | Phase 3 | Pending |
+| CAL-03 | Phase 3 | Pending |
+| CAL-04 | Phase 3 | Pending |
+| QCORE-02 | Phase 3 | Pending |
 | VAL-04 | Phase 3 | Pending |
-| AGN-01 | Phase 1 | Pending |
-| AGN-02 | Phase 1 | Pending |
-| AGN-03 | Phase 1 | Pending |
-| AGN-04 | Phase 1 | Pending |
+| UI-01 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Pending |
+| UI-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total
 - Mapped to phases: 30
-- Unmapped: 0 ✓
+- Unmapped: 0
+
+**By Phase:**
+- Phase 1: 8 requirements (model-agnostic foundation, INT8/FP16, dynamic quantization)
+- Phase 2: 12 requirements (calibration, serialization, static quantization, validation)
+- Phase 3: 5 requirements (INT4, advanced observers, layer skipping, warnings)
+- Phase 4: 4 requirements (Python API, CLI, parameters, progress)
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-03 after initial definition*
+*Last updated: 2026-02-03 after roadmap creation*
