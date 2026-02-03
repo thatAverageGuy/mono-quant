@@ -1,11 +1,16 @@
 """
-MinMaxObserver for tracking activation ranges during calibration.
+Observers for tracking activation ranges during calibration.
 
-This module provides a custom MinMaxObserver implementation to avoid using
+This module provides custom observer implementations to avoid using
 deprecated torch.ao.quantization APIs (scheduled for removal in PyTorch 2.10+).
 
-The observer tracks min/max values from tensor activations during forward
-passes and calculates scale and zero-point parameters for quantization.
+Observers track min/max values from tensor activations during forward
+passes and calculate scale and zero-point parameters for quantization.
+
+Available observers:
+- MinMaxObserver: Simple min/max tracking (baseline)
+- MovingAverageMinMaxObserver: EMA-based smoothing for outlier handling
+- HistogramObserver: KL divergence minimization for skewed distributions
 
 Layer selection functions provide type-based and name-based filtering for
 selective quantization of model layers.
@@ -13,6 +18,7 @@ selective quantization of model layers.
 
 from typing import List, Tuple, Type, Union, Optional
 
+import math
 import torch
 import torch.nn as nn
 
@@ -142,6 +148,159 @@ class MinMaxObserver:
 
         Examples:
             >>> obs = MinMaxObserver()
+            >>> obs.forward(torch.randn(10))
+            >>> obs.reset()
+            >>> assert obs.min_val is None
+            >>> assert obs.max_val is None
+        """
+        self.min_val = None
+        self.max_val = None
+
+
+class MovingAverageMinMaxObserver:
+    """
+    Observer that tracks exponential moving average of min/max values.
+
+    This observer smooths out transient spikes in calibration data using
+    an exponential moving average (EMA). This makes it more robust to
+    outliers compared to MinMaxObserver, which is sensitive to single
+    extreme values that can distort the entire quantization range.
+
+    The EMA formula is:
+        new_val = (1 - c) * old_val + c * current_val
+
+    Where c is the averaging_constant:
+    - Lower values (e.g., 0.001) = more stable, slower to adapt
+    - Higher values (e.g., 0.1) = more responsive, less smoothing
+    - Default 0.01 matches PyTorch's standard behavior
+
+    Args:
+        averaging_constant: Weight for new observations (0 < c <= 1).
+                           Default is 0.01, matching PyTorch's standard.
+        dtype: Target quantization dtype. Default is torch.qint8.
+
+    Attributes:
+        averaging_constant: The weight for new observations.
+        dtype: The target quantization dtype.
+        min_val: EMA of minimum values observed across all forward passes.
+        max_val: EMA of maximum values observed across all forward passes.
+
+    Raises:
+        ValueError: If averaging_constant is not in (0, 1].
+
+    Examples:
+        >>> import torch
+        >>> from mono_quant.core.observers import MovingAverageMinMaxObserver
+        >>> obs = MovingAverageMinMaxObserver(averaging_constant=0.01)
+        >>> x = torch.randn(32, 64)
+        >>> obs.forward(x)
+        >>> scale, zp = obs.calculate_qparams()
+        >>> assert scale.ndim == 0 and zp.ndim == 0
+    """
+
+    def __init__(
+        self,
+        averaging_constant: float = 0.01,
+        dtype: torch.dtype = torch.qint8,
+    ) -> None:
+        if not 0 < averaging_constant <= 1:
+            raise ValueError(
+                f"averaging_constant must be in (0, 1], got {averaging_constant}"
+            )
+        self.averaging_constant = averaging_constant
+        self.dtype = dtype
+        self.min_val = None
+        self.max_val = None
+
+    def forward(self, x: torch.Tensor) -> None:
+        """
+        Update EMA of min/max values from input tensor.
+
+        This method applies exponential moving average to smooth out
+        transient spikes in the activation ranges.
+
+        Args:
+            x: Input tensor to observe. Can be any shape; only global min/max
+               are tracked.
+
+        Examples:
+            >>> obs = MovingAverageMinMaxObserver(averaging_constant=0.5)
+            >>> obs.forward(torch.tensor([1.0, 2.0, 3.0]))
+            >>> assert obs.min_val is not None
+            >>> obs.forward(torch.tensor([10.0, 20.0, 30.0]))
+            >>> # EMA smooths the jump, min_val won't immediately be 10.0
+        """
+        x_min = x.amin().item()
+        x_max = x.amax().item()
+
+        if self.min_val is None:
+            # First observation
+            self.min_val = x_min
+            self.max_val = x_max
+        else:
+            # Apply exponential moving average
+            c = self.averaging_constant
+            self.min_val = (1 - c) * self.min_val + c * x_min
+            self.max_val = (1 - c) * self.max_val + c * x_max
+
+    def calculate_qparams(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Calculate scale and zero-point from EMA min/max values.
+
+        This computes the quantization parameters using asymmetric affine
+        quantization, identical to MinMaxObserver.
+
+        Returns:
+            A tuple of (scale, zero_point):
+            - scale: 0-dim tensor with the quantization scale factor
+            - zero_point: 0-dim tensor with int32 dtype containing the
+              zero-point offset
+
+        Raises:
+            RuntimeError: If no data has been observed (min_val is None).
+
+        Examples:
+            >>> obs = MovingAverageMinMaxObserver()
+            >>> obs.forward(torch.tensor([-1.0, 1.0]))
+            >>> scale, zp = obs.calculate_qparams()
+            >>> assert scale > 0
+            >>> assert isinstance(zp.item(), int)
+        """
+        if self.min_val is None:
+            raise RuntimeError(
+                "No data observed. Call forward() with calibration data "
+                "before calculating quantization parameters."
+            )
+
+        # int8 range: [-128, 127]
+        qmin, qmax = -128, 127
+
+        # Calculate scale
+        range_val = self.max_val - self.min_val
+        q_range = qmax - qmin
+        scale = range_val / q_range
+
+        # Clamp scale to avoid division by zero
+        scale = max(scale, 1e-8)
+
+        # Calculate zero-point and round to integer
+        zero_point = qmin - (self.min_val / scale)
+        zero_point = int(round(zero_point))
+
+        # Clamp to valid range
+        zero_point = max(qmin, min(qmax, zero_point))
+
+        return torch.tensor(scale), torch.tensor(zero_point, dtype=torch.int32)
+
+    def reset(self) -> None:
+        """
+        Reset the observer to its initial state.
+
+        This clears all observed EMA min/max values, allowing the observer
+        to be reused for a new calibration session.
+
+        Examples:
+            >>> obs = MovingAverageMinMaxObserver()
             >>> obs.forward(torch.randn(10))
             >>> obs.reset()
             >>> assert obs.min_val is None
