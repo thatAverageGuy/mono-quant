@@ -27,6 +27,7 @@ dependencies = [
     "torch>=2.0.0",
     "safetensors>=0.4",
     "tqdm>=4.66",
+    "click>=8.1",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,10 @@ dev = [
     "mypy>=1.0.0",
     "tqdm>=4.66",
 ]
+
+[project.scripts]
+monoquant = "mono_quant.cli.main:cli"
+mq = "mono_quant.cli.main:cli"
 
 [project.urls]
 Homepage = "https://github.com/yourusername/mono-quant"
