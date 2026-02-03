@@ -2,9 +2,10 @@
 
 This module provides the core quantization API including:
 - Quantization schemes (symmetric, asymmetric)
-- Weight quantization and dequantization functions
+- Weight quantization and dequantization functions (INT8, INT4, FP16)
 - Dynamic and static quantization
 - Calibration observers for tracking activation ranges
+- Group-wise quantization for INT4 weights
 
 Observers available:
 - MinMaxObserver: Simple min/max tracking (baseline)
@@ -24,10 +25,12 @@ from mono_quant.core.schemes import (
 from mono_quant.core.mappers import (
     calculate_scale_zp_per_tensor,
     calculate_scale_zp_per_channel,
+    calculate_scale_zp_groupwise,
     get_dtype_range,
 )
 from mono_quant.core.quantizers import (
     quantize_weight_int8,
+    quantize_weight_int4,
     quantize_weight_fp16,
     dequantize_weight,
     dequantize_model,
@@ -52,9 +55,11 @@ __all__ = [
     # Mappers
     "calculate_scale_zp_per_tensor",
     "calculate_scale_zp_per_channel",
+    "calculate_scale_zp_groupwise",
     "get_dtype_range",
     # Quantizers
     "quantize_weight_int8",
+    "quantize_weight_int4",
     "quantize_weight_fp16",
     "dequantize_weight",
     "dequantize_model",
