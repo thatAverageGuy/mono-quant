@@ -71,7 +71,7 @@ from mono_quant.core.quantizers import static_quantize
 from mono_quant.io import save_model, load_model
 
 # Validation
-from mono_quant.io.validation import ValidationResult, validate_quantization
+from mono_quant.io.validation import ValidationResult, validate_quantization, check_accuracy_warnings
 
 __all__ = [
     # Version
@@ -87,4 +87,5 @@ __all__ = [
     # Validation
     "ValidationResult",
     "validate_quantization",
+    "check_accuracy_warnings",
 ]
