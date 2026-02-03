@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Core Quantization Foundation** - Model-agnostic quantization with INT8/FP16 support
 - [x] **Phase 2: Static Quantization & I/O** - Calibration, serialization, and validation
-- [ ] **Phase 3: Advanced Calibration & INT4** - Group-wise scaling, advanced observers, INT4 support
+- [x] **Phase 3: Advanced Calibration & INT4** - Group-wise scaling, advanced observers, INT4 support
 - [ ] **Phase 4: User Interfaces** - Python API and CLI for automation and CI/CD
 
 ## Phase Details
@@ -83,9 +83,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: INT4 quantization with group-wise scaling
-- [ ] 03-02: Advanced observers (MovingAverageMinMax, Histogram)
-- [ ] 03-03: Layer skipping and accuracy warnings
+- [x] 03-01-PLAN.md — INT4 quantization with group-wise scaling (packed int8 storage, QuantizedLinearInt4)
+- [x] 03-02-PLAN.md — Advanced observers (MovingAverageMinMax, Histogram) with KL divergence
+- [x] 03-03-PLAN.md — Layer skipping (default INT4 skip list) and accuracy warnings (SQNR thresholds)
 
 ### Phase 4: User Interfaces
 
@@ -116,5 +116,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Core Quantization Foundation | 4/4 | Complete ✓ | 2026-02-03 |
 | 2. Static Quantization & I/O | 4/4 | Complete ✓ | 2026-02-03 |
-| 3. Advanced Calibration & INT4 | 0/3 | Not started | - |
+| 3. Advanced Calibration & INT4 | 3/3 | Complete ✓ | 2026-02-03 |
 | 4. User Interfaces | 0/2 | Not started | - |

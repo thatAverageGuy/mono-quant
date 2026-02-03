@@ -120,11 +120,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VAL-01 | Phase 2 | Pending |
 | VAL-02 | Phase 2 | Pending |
 | VAL-03 | Phase 2 | Pending |
-| CAL-02 | Phase 3 | Pending |
-| CAL-03 | Phase 3 | Pending |
-| CAL-04 | Phase 3 | Pending |
-| QCORE-02 | Phase 3 | Pending |
-| VAL-04 | Phase 3 | Pending |
+| CAL-02 | Phase 3 | Complete |
+| CAL-03 | Phase 3 | Complete |
+| CAL-04 | Phase 3 | Complete |
+| QCORE-02 | Phase 3 | Complete |
+| VAL-04 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Pending |
 | UI-02 | Phase 4 | Pending |
 | UI-03 | Phase 4 | Pending |
