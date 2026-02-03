@@ -1,3 +1,13 @@
 """Core quantization functionality."""
 
-# Public exports will be added in 01-04
+from mono_quant.core.schemes import (
+    QuantizationScheme,
+    SymmetricScheme,
+    AsymmetricScheme,
+)
+
+__all__ = [
+    "QuantizationScheme",
+    "SymmetricScheme",
+    "AsymmetricScheme",
+]
