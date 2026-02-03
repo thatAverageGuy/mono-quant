@@ -37,10 +37,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project setup, config system, and model-agnostic input handling
-- [ ] 01-02-PLAN.md — Core quantization math (symmetric/asymmetric schemes, scale/zp mappers)
-- [ ] 01-03-PLAN.md — Quantization transformations (INT8, FP16) and QuantizedLinear module
-- [ ] 01-04-PLAN.md — End-to-end dynamic_quantize() function with public API exports
+- [x] 01-01-PLAN.md — Project setup, config system, and model-agnostic input handling
+- [x] 01-02-PLAN.md — Core quantization math (symmetric/asymmetric schemes, scale/zp mappers)
+- [x] 01-03-PLAN.md — Quantization transformations (INT8, FP16) and QuantizedLinear module
+- [x] 01-04-PLAN.md — End-to-end dynamic_quantize() function with public API exports
 
 ### Phase 2: Static Quantization & I/O
 
@@ -61,10 +61,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 02-01: Calibration infrastructure (MinMaxObserver, calibration data API)
-- [ ] 02-02: Static quantization with layer type selection
-- [ ] 02-03: Serialization (PyTorch and Safetensors formats with metadata)
-- [ ] 02-04: Validation metrics and model verification
+- [ ] 02-01-PLAN.md — Calibration infrastructure (MinMaxObserver, calibration runner, data normalization)
+- [ ] 02-02-PLAN.md — Layer selection API and static_quantize function with calibration
+- [ ] 02-03-PLAN.md — Serialization (PyTorch and Safetensors formats with metadata)
+- [ ] 02-04-PLAN.md — Validation metrics (SQNR, size, load test) and public API integration
 
 ### Phase 3: Advanced Calibration & INT4
 
@@ -114,7 +114,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Quantization Foundation | 4/4 | Complete ✓ | 2026-02-03 |
-| 2. Static Quantization & I/O | 0/4 | Not started | - |
+| 1. Core Quantization Foundation | 4/4 | Complete | 2026-02-03 |
+| 2. Static Quantization & I/O | 0/4 | Planning | - |
 | 3. Advanced Calibration & INT4 | 0/3 | Not started | - |
 | 4. User Interfaces | 0/2 | Not started | - |
