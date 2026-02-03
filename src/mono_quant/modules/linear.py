@@ -13,7 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from mono_quant.core.quantizers import quantize_weight_int8, dequantize_weight
+from mono_quant.core.quantizers import quantize_weight_int8, dequantize_weight, quantize_weight_int4
 
 
 class QuantizedLinear(nn.Module):
@@ -309,3 +309,247 @@ def quantize_conv2d_module(
         q_module.bias.data = module.bias.data.clone()
 
     return q_module
+
+
+class QuantizedLinearInt4(nn.Module):
+    """
+    A Linear layer with INT4 quantized weights for inference.
+
+    This module stores weights in packed INT4 format (2 values per int8 byte)
+    and dequantizes them during the forward pass. Group-wise scaling is used
+    to maintain accuracy at 4-bit precision.
+
+    Args:
+        in_features: Number of input features.
+        out_features: Number of output features.
+        packed_weight: Packed INT4 weights stored as int8 tensor.
+        scales: Per-group scale factors for dequantization.
+        zero_points: Per-group zero-points for dequantization.
+        group_size: Number of channels per group. Default is 128.
+        bias: Optional bias tensor. Default is None.
+
+    Attributes:
+        in_features: Number of input features.
+        out_features: Number of output features.
+        group_size: Number of channels per quantization group.
+        bias: Optional bias parameter (not quantized).
+
+    Examples:
+        >>> import torch
+        >>> import torch.nn as nn
+        >>> from mono_quant.modules.linear import quantize_linear_module_int4
+        >>> linear = nn.Linear(128, 256)
+        >>> q_linear = quantize_linear_module_int4(linear, group_size=128)
+        >>> x = torch.randn(32, 128)
+        >>> y = q_linear(x)
+        >>> assert y.shape == (32, 256)
+    """
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        packed_weight: torch.Tensor,
+        scales: torch.Tensor,
+        zero_points: torch.Tensor,
+        group_size: int = 128,
+        bias: Optional[torch.Tensor] = None,
+    ):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.group_size = group_size
+
+        # Register as buffers (not parameters) since these are fixed quantization values
+        self.register_buffer("_packed_weight", packed_weight)
+        self.register_buffer("_scales", scales)
+        self.register_buffer("_zero_points", zero_points)
+
+        # Bias is stored as a parameter if provided
+        if bias is not None:
+            self.bias = nn.Parameter(bias.clone())
+        else:
+            self.register_parameter("bias", None)
+
+    @classmethod
+    def from_float(
+        cls,
+        module: nn.Linear,
+        group_size: int = 128,
+        symmetric: bool = True,
+    ) -> "QuantizedLinearInt4":
+        """
+        Create a QuantizedLinearInt4 from an existing nn.Linear module.
+
+        This factory method quantizes the weights from the source Linear
+        module and creates a new QuantizedLinearInt4 instance.
+
+        Args:
+            module: Source nn.Linear module to quantize.
+            group_size: Number of channels per group. Default is 128.
+            symmetric: If True, use symmetric quantization. Default is True.
+
+        Returns:
+            A new QuantizedLinearInt4 instance with quantized weights.
+
+        Examples:
+            >>> import torch.nn as nn
+            >>> from mono_quant.modules.linear import QuantizedLinearInt4
+            >>> linear = nn.Linear(128, 256)
+            >>> q_linear = QuantizedLinearInt4.from_float(linear, group_size=128)
+        """
+        # Local import to avoid circular dependencies
+        from mono_quant.core.quantizers import quantize_weight_int4
+
+        # Get weight from module
+        weight = module.weight.data
+
+        # Quantize to INT4 with group-wise scaling
+        packed, scales, zero_points = quantize_weight_int4(
+            weight, group_size=group_size, symmetric=symmetric, axis=0
+        )
+
+        # Create new QuantizedLinearInt4 instance
+        q_linear = cls(
+            in_features=module.in_features,
+            out_features=module.out_features,
+            packed_weight=packed,
+            scales=scales,
+            zero_points=zero_points,
+            group_size=group_size,
+            bias=module.bias.data.clone() if module.bias is not None else None,
+        )
+
+        return q_linear
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass with dequantized weights.
+
+        The packed INT4 weights are unpacked and dequantized using per-group
+        scale and zero-point values before computing the linear transformation.
+
+        Args:
+            x: Input tensor of shape (*, in_features).
+
+        Returns:
+            Output tensor of shape (*, out_features).
+        """
+        # Local imports to avoid circular dependencies
+        from mono_quant.core.mappers import _unpack_int8_to_int4
+
+        # Unpack and dequantize weights
+        weight = self._dequantize_weight()
+
+        # Compute linear transformation
+        output = F.linear(x, weight, self.bias)
+
+        return output
+
+    def _dequantize_weight(self) -> torch.Tensor:
+        """
+        Dequantize the packed INT4 weights back to float32.
+
+        Unpacks the INT4 values from int8 storage and applies per-group
+        dequantization using scale and zero-point.
+
+        Returns:
+            Dequantized weight tensor with shape (out_features, in_features).
+        """
+        from mono_quant.core.mappers import _unpack_int8_to_int4
+
+        # Calculate total number of INT4 values
+        num_elements = self.out_features * self.in_features
+
+        # Unpack INT4 values from int8 storage
+        int4_values = _unpack_int8_to_int4(self._packed_weight, num_elements)
+
+        # Reshape to (out_features, in_features)
+        weight = int4_values.reshape(self.out_features, self.in_features).float()
+
+        # Apply per-group dequantization
+        num_groups = self._scales.shape[0]
+
+        for g in range(num_groups):
+            start_idx = g * self.group_size
+            end_idx = min(start_idx + self.group_size, self.out_features)
+
+            # Get scale and zero_point for this group
+            scale = self._scales[g].item()
+            zp = self._zero_points[g].item()
+
+            # Dequantize: (int4 - zero_point) * scale
+            weight[start_idx:end_idx, :] = (weight[start_idx:end_idx, :] - zp) * scale
+
+        return weight
+
+    @property
+    def weight(self) -> torch.Tensor:
+        """
+        Return the dequantized weight (for compatibility).
+
+        This property provides compatibility with code that expects
+        a weight attribute on Linear modules.
+
+        Returns:
+            Dequantized weight tensor.
+        """
+        return self._dequantize_weight()
+
+    def extra_repr(self) -> str:
+        """Return extra representation string."""
+        return (
+            f"in_features={self.in_features}, "
+            f"out_features={self.out_features}, "
+            f"group_size={self.group_size}, "
+            f"bias={self.bias is not None}"
+        )
+
+
+def quantize_linear_module_int4(
+    module: nn.Linear,
+    group_size: int = 128,
+    symmetric: bool = True,
+) -> QuantizedLinearInt4:
+    """
+    Quantize an nn.Linear module to a QuantizedLinearInt4.
+
+    This function creates a new QuantizedLinearInt4 module with INT4
+    quantized weights copied from the source Linear module. The original
+    module is not modified.
+
+    INT4 quantization provides 2x additional compression over INT8 by
+    storing weights in packed format (2 INT4 values per int8 byte).
+
+    Args:
+        module: Source nn.Linear module to quantize.
+        group_size: Number of channels per quantization group. Default is 128.
+        symmetric: If True, use symmetric quantization (zero_point = 0).
+                   If False, use asymmetric quantization. Default is True.
+
+    Returns:
+        A new QuantizedLinearInt4 instance with quantized weights.
+
+    Raises:
+        TypeError: If module is not an nn.Linear instance.
+
+    Examples:
+        >>> import torch.nn as nn
+        >>> from mono_quant.modules.linear import quantize_linear_module_int4
+        >>> linear = nn.Linear(128, 256)
+        >>> q_linear = quantize_linear_module_int4(linear, group_size=128)
+        >>> assert isinstance(q_linear, QuantizedLinearInt4)
+        >>> # Forward pass
+        >>> x = torch.randn(32, 128)
+        >>> y = q_linear(x)
+        >>> assert y.shape == (32, 256)
+    """
+    if not isinstance(module, nn.Linear):
+        raise TypeError(
+            f"Expected nn.Linear module, got {type(module).__name__}. "
+            f"quantize_linear_module_int4 only supports nn.Linear layers."
+        )
+
+    return QuantizedLinearInt4.from_float(
+        module, group_size=group_size, symmetric=symmetric
+    )
