@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 2 of 4 (Static Quantization & I/O)
-Plan: 1 of 4 (Calibration Infrastructure)
+Plan: 3 of 4 (Model Serialization)
 Status: In progress
-Last activity: 2026-02-03 — Completed 02-01-PLAN.md
+Last activity: 2026-02-03 — Completed 02-03-PLAN.md
 
-Progress: [███░░░░░░] 25%
+Progress: [██████░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 8.2 min
-- Total execution time: 0.7 hours
+- Total plans completed: 7
+- Average duration: 7.6 min
+- Total execution time: 0.9 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 4 | 4 | 8.5 min |
-| 2 | 1 | 4 | 7 min |
+| 2 | 3 | 4 | 6.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (12 min), 01-02 (13 min), 01-03 (5 min), 01-04 (4 min), 02-01 (7 min)
+- Last 5 plans: 01-04 (4 min), 02-01 (7 min), 02-02 (7 min), 02-03 (5 min)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -63,6 +63,13 @@ Recent decisions affecting current work:
 - [02-01]: 150 sample default for calibration aligns with research (100-200 baseline)
 - [02-01]: Progress bar auto-detection at 50 samples threshold
 - [02-01]: DataLoader (input, target) pattern handled by extracting batch[0]
+- [02-02]: Layer type selection with include/skip parameters for flexible quantization
+- [02-02]: Support both module type selection and exact layer name selection
+- [02-02]: Default layer_types=(nn.Linear, nn.Conv2d) for static quantization
+- [02-03]: Safetensors format preferred over PyTorch pickle for secure serialization
+- [02-03]: All metadata values must be strings per safetensors constraint
+- [02-03]: QuantizationInfo dataclass captures quantization parameters for metadata
+- [02-03]: Format auto-detection from file extension (.safetensors vs .pt/.pth)
 
 ### Pending Todos
 
@@ -75,5 +82,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 02-01-PLAN.md (calibration infrastructure with MinMaxObserver)
+Stopped at: Completed 02-03-PLAN.md (model serialization with Safetensors and PyTorch formats)
 Resume file: None
