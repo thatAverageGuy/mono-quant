@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 ## Current Position
 
-Phase: 2 of 4 (Static Quantization & I/O)
-Plan: 4 of 4 (Calibration, Serialization, Validation)
-Status: Phase complete
-Last activity: 2026-02-03 — Completed Phase 2 (all 4 plans)
+Phase: 3 of 4 (Advanced Calibration & INT4)
+Plan: 2 of 4 (Advanced Observers, INT4, QAT, Calibration Tools)
+Status: In progress
+Last activity: 2026-02-03 — Completed Plan 03-02 (Advanced Observers)
 
-Progress: [██████████] 50%
+Progress: [██████████░] 56%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 7.5 min
-- Total execution time: 1.0 hours
+- Total plans completed: 9
+- Average duration: 7.4 min
+- Total execution time: 1.1 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [██████████] 50%
 |-------|-------|-------|----------|
 | 1 | 4 | 4 | 8.5 min |
 | 2 | 4 | 4 | 7.5 min |
+| 3 | 1 | 4 | 7.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (7 min), 02-02 (11 min), 02-03 (5 min), 02-04 (7 min)
+- Last 5 plans: 02-04 (7 min), 03-01 (7 min), 03-02 (7 min)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -74,6 +75,16 @@ Recent decisions affecting current work:
 - on_failure parameter configurable (error/warn/ignore)
 - Zero-point clamped to valid range [-128, 127] to prevent PyTorch runtime errors
 
+**Phase 3:**
+- MovingAverageMinMaxObserver uses EMA smoothing with averaging_constant default 0.01 (PyTorch standard)
+- averaging_constant validated to (0, 1] range to prevent misuse
+- HistogramObserver uses KL divergence minimization for threshold selection (TensorRT-style)
+- KL divergence search range: 50-100% of histogram to avoid overly narrow ranges
+- Histogram bins default: 2048 for good resolution
+- Observer factory pattern: create_observer() accepts flexible string names
+- Auto-selection marked as experimental due to unreliable heuristics
+- All observers share identical interface: forward(), calculate_qparams(), reset()
+
 ### Pending Todos
 
 None yet.
@@ -85,5 +96,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed Phase 2 execution (all 4 plans, verification passed)
+Stopped at: Completed 03-02-PLAN.md (Advanced Observers)
 Resume file: None
