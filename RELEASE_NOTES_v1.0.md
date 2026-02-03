@@ -97,14 +97,21 @@ monoquant quantize --model model.pt --bits 8 --output model_quantized.pt
 
 ## 🔧 Requirements
 
-- **Python:** 3.8 or higher
+- **Python:** 3.11 or higher
 - **PyTorch:** 2.0 or higher
+- **NumPy:** 1.24 or higher
+
+### Included Dependencies
+
+- `safetensors>=0.4` - Safetensors format support
+- `click>=8.1` - CLI framework
+- `tqdm>=4.66` - Progress bars
 
 ### Optional Dependencies
 
-- `safetensors>=0.4` - For Safetensors format support
-- `click>=8.1` - For CLI
-- `tqdm>=4.66` - For progress bars
+- `mkdocs>=1.6.0` - Documentation building
+- `mkdocs-material>=9.7.0` - Documentation theme
+- `mkdocstrings[python]>=1.0.0` - API documentation
 
 ## 📚 Documentation
 

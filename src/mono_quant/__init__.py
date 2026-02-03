@@ -2,7 +2,7 @@
 Mono Quant - Simple, reliable model quantization with minimal dependencies.
 
 This package provides model-agnostic quantization for PyTorch models with only
-torch as a required dependency.
+torch and numpy as required dependencies.
 
 ## Public API
 
@@ -71,7 +71,7 @@ Advanced API with direct access to quantization functions:
     >>> save_model(q_model, "quantized.safetensors")
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 # Unified API
 from mono_quant.api import quantize

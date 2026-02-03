@@ -47,6 +47,7 @@ Mono Quant depends on the following packages:
 ### Required Dependencies
 
 - **PyTorch** - BSD 3-Clause License
+- **NumPy** - BSD 3-Clause License
 - **Python Standard Library** - Python Software Foundation License
 
 ### Optional Dependencies

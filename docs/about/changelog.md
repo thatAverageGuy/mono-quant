@@ -54,13 +54,19 @@
 ### Dependencies
 
 **Required:**
-- Python >= 3.8
+- Python >= 3.11
 - torch >= 2.0
+- numpy >= 1.24
+
+**Included:**
+- safetensors >= 0.4 (Safetensors format)
+- click >= 8.1 (CLI)
+- tqdm >= 4.66 (progress bars)
 
 **Optional:**
-- safetensors >= 0.4 (for Safetensors format)
-- click >= 8.1 (for CLI)
-- tqdm >= 4.66 (for progress bars)
+- mkdocs >= 1.6.0 (documentation)
+- mkdocs-material >= 9.7.0 (documentation theme)
+- mkdocstrings[python] >= 1.0.0 (API documentation)
 
 ### Documentation
 

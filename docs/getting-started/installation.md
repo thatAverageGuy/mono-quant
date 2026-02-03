@@ -8,10 +8,11 @@ pip install mono-quant
 
 ## Requirements
 
-- **Python**: 3.8 or higher
+- **Python**: 3.11 or higher
 - **PyTorch**: 2.0 or higher
+- **NumPy**: 1.24 or higher
 
-Mono Quant only requires `torch` as a dependency. All other features are optional or use standard library.
+Mono Quant requires `torch` and `numpy` as dependencies. All other features are optional or use standard library.
 
 ## Optional Dependencies
 
@@ -23,6 +24,9 @@ pip install mono-quant[safetensors]
 
 # Development dependencies (testing, building)
 pip install mono-quant[dev]
+
+# Documentation dependencies
+pip install mono-quant[docs]
 ```
 
 ### Optional Dependencies Breakdown
@@ -30,8 +34,8 @@ pip install mono-quant[dev]
 | Feature | Package | Install |
 |---------|---------|---------|
 | Safetensors format | `safetensors` | `pip install safetensors` |
-| CLI progress bars | `tqdm` | `pip install tqdm` |
-| Click framework | `click>=8.1` | `pip install click>=8.1` |
+| CLI progress bars | `tqdm` | Included in main package |
+| Click framework | `click>=8.1` | Included in main package |
 
 ## Verify Installation
 
@@ -56,7 +60,7 @@ git clone https://github.com/thatAverageGuy/mono-quant.git
 cd mono-quant
 
 # Install in editable mode
-pip install -e ".[dev]"
+pip install -e ".[dev,docs]"
 
 # Run tests
 pytest

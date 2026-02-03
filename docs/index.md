@@ -10,7 +10,7 @@
 
 ## What is Mono Quant?
 
-Mono Quant is a simple, reliable model quantization package for PyTorch with minimal dependencies. Just `torch`, no bloat.
+Mono Quant is a simple, reliable model quantization package for PyTorch with minimal dependencies. Just `torch` and `numpy`, no bloat.
 
 ### Key Features
 
