@@ -52,6 +52,104 @@ class MinMaxObserver:
         self.min_val = None
         self.max_val = None
 
+    def forward(self, x: torch.Tensor) -> None:
+        """
+        Update min/max values from input tensor.
+
+        This method updates the observer's internal min/max state by comparing
+        the current tensor's minimum and maximum values with previously observed
+        values. It handles the first call when min_val/max_val are None.
+
+        Args:
+            x: Input tensor to observe. Can be any shape; only global min/max
+               are tracked.
+
+        Examples:
+            >>> obs = MinMaxObserver()
+            >>> obs.forward(torch.tensor([1.0, 2.0, 3.0]))
+            >>> assert obs.min_val == 1.0
+            >>> assert obs.max_val == 3.0
+        """
+        x_min = x.amin().item()
+        x_max = x.amax().item()
+
+        if self.min_val is None:
+            # First observation
+            self.min_val = x_min
+            self.max_val = x_max
+        else:
+            # Update min/max
+            self.min_val = min(self.min_val, x_min)
+            self.max_val = max(self.max_val, x_max)
+
+    def calculate_qparams(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Calculate scale and zero-point from observed min/max values.
+
+        This computes the quantization parameters using asymmetric affine
+        quantization:
+            scale = (max_val - min_val) / (qmax - qmin)
+            zero_point = qmin - (min_val / scale)
+
+        The scale is clamped to a minimum of 1e-8 to avoid division by zero
+        when the observed range is zero (constant tensor).
+
+        Returns:
+            A tuple of (scale, zero_point):
+            - scale: 0-dim tensor with the quantization scale factor
+            - zero_point: 0-dim tensor with int32 dtype containing the
+              zero-point offset
+
+        Raises:
+            RuntimeError: If no data has been observed (min_val is None).
+
+        Examples:
+            >>> obs = MinMaxObserver()
+            >>> obs.forward(torch.tensor([-1.0, 1.0]))
+            >>> scale, zp = obs.calculate_qparams()
+            >>> assert scale > 0
+            >>> assert isinstance(zp.item(), int)
+        """
+        if self.min_val is None:
+            raise RuntimeError(
+                "No data observed. Call forward() with calibration data "
+                "before calculating quantization parameters."
+            )
+
+        # int8 range: [-128, 127]
+        qmin, qmax = -128, 127
+
+        # Calculate scale
+        range_val = self.max_val - self.min_val
+        q_range = qmax - qmin
+        scale = range_val / q_range
+
+        # Clamp scale to avoid division by zero
+        scale = max(scale, 1e-8)
+
+        # Calculate zero-point and round to integer
+        zero_point = qmin - (self.min_val / scale)
+        zero_point = int(round(zero_point))
+
+        return torch.tensor(scale), torch.tensor(zero_point, dtype=torch.int32)
+
+    def reset(self) -> None:
+        """
+        Reset the observer to its initial state.
+
+        This clears all observed min/max values, allowing the observer
+        to be reused for a new calibration session.
+
+        Examples:
+            >>> obs = MinMaxObserver()
+            >>> obs.forward(torch.randn(10))
+            >>> obs.reset()
+            >>> assert obs.min_val is None
+            >>> assert obs.max_val is None
+        """
+        self.min_val = None
+        self.max_val = None
+
 
 # Type alias for layer types used in selection
 LayerTypes = Union[Type[nn.Module], Tuple[Type[nn.Module], ...]]
@@ -242,101 +340,3 @@ def _merge_selection_results(
     all_skipped -= all_selected
 
     return sorted(list(all_selected)), sorted(list(all_skipped))
-
-    def forward(self, x: torch.Tensor) -> None:
-        """
-        Update min/max values from input tensor.
-
-        This method updates the observer's internal min/max state by comparing
-        the current tensor's minimum and maximum values with previously observed
-        values. It handles the first call when min_val/max_val are None.
-
-        Args:
-            x: Input tensor to observe. Can be any shape; only global min/max
-               are tracked.
-
-        Examples:
-            >>> obs = MinMaxObserver()
-            >>> obs.forward(torch.tensor([1.0, 2.0, 3.0]))
-            >>> assert obs.min_val == 1.0
-            >>> assert obs.max_val == 3.0
-        """
-        x_min = x.amin().item()
-        x_max = x.amax().item()
-
-        if self.min_val is None:
-            # First observation
-            self.min_val = x_min
-            self.max_val = x_max
-        else:
-            # Update min/max
-            self.min_val = min(self.min_val, x_min)
-            self.max_val = max(self.max_val, x_max)
-
-    def calculate_qparams(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Calculate scale and zero-point from observed min/max values.
-
-        This computes the quantization parameters using asymmetric affine
-        quantization:
-            scale = (max_val - min_val) / (qmax - qmin)
-            zero_point = qmin - (min_val / scale)
-
-        The scale is clamped to a minimum of 1e-8 to avoid division by zero
-        when the observed range is zero (constant tensor).
-
-        Returns:
-            A tuple of (scale, zero_point):
-            - scale: 0-dim tensor with the quantization scale factor
-            - zero_point: 0-dim tensor with int32 dtype containing the
-              zero-point offset
-
-        Raises:
-            RuntimeError: If no data has been observed (min_val is None).
-
-        Examples:
-            >>> obs = MinMaxObserver()
-            >>> obs.forward(torch.tensor([-1.0, 1.0]))
-            >>> scale, zp = obs.calculate_qparams()
-            >>> assert scale > 0
-            >>> assert isinstance(zp.item(), int)
-        """
-        if self.min_val is None:
-            raise RuntimeError(
-                "No data observed. Call forward() with calibration data "
-                "before calculating quantization parameters."
-            )
-
-        # int8 range: [-128, 127]
-        qmin, qmax = -128, 127
-
-        # Calculate scale
-        range_val = self.max_val - self.min_val
-        q_range = qmax - qmin
-        scale = range_val / q_range
-
-        # Clamp scale to avoid division by zero
-        scale = max(scale, 1e-8)
-
-        # Calculate zero-point and round to integer
-        zero_point = qmin - (self.min_val / scale)
-        zero_point = int(round(zero_point))
-
-        return torch.tensor(scale), torch.tensor(zero_point, dtype=torch.int32)
-
-    def reset(self) -> None:
-        """
-        Reset the observer to its initial state.
-
-        This clears all observed min/max values, allowing the observer
-        to be reused for a new calibration session.
-
-        Examples:
-            >>> obs = MinMaxObserver()
-            >>> obs.forward(torch.randn(10))
-            >>> obs.reset()
-            >>> assert obs.min_val is None
-            >>> assert obs.max_val is None
-        """
-        self.min_val = None
-        self.max_val = None
