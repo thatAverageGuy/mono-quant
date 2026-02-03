@@ -37,10 +37,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans
 
 Plans:
-- [ ] 01-01: Model-agnostic input handling (nn.Module and state_dict)
-- [ ] 01-02: Core quantization logic (schemes, mappers, quantizers)
-- [ ] 01-03: Dynamic quantization implementation (INT8, FP16)
-- [ ] 01-04: Per-channel scaling with symmetric/asymmetric schemes
+- [ ] 01-01-PLAN.md — Project setup, config system, and model-agnostic input handling
+- [ ] 01-02-PLAN.md — Core quantization math (symmetric/asymmetric schemes, scale/zp mappers)
+- [ ] 01-03-PLAN.md — Quantization transformations (INT8, FP16) and QuantizedLinear module
+- [ ] 01-04-PLAN.md — End-to-end dynamic_quantize() function with public API exports
 
 ### Phase 2: Static Quantization & I/O
 
