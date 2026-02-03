@@ -37,14 +37,20 @@ dev = [
     "mypy>=1.0.0",
     "tqdm>=4.66",
 ]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.7.0",
+    "mkdocstrings[python]>=1.0.0",
+]
 
 [project.scripts]
 monoquant = "mono_quant.cli.main:cli"
 mq = "mono_quant.cli.main:cli"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/mono-quant"
-Repository = "https://github.com/yourusername/mono-quant"
+Homepage = "https://github.com/thatAverageGuy/mono-quant"
+Repository = "https://github.com/thatAverageGuy/mono-quant"
+Documentation = "https://thataverageguy.github.io/mono-quant"
 
 [tool.setuptools.packages.find]
 where = ["src"]
