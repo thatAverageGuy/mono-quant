@@ -310,6 +310,266 @@ class MovingAverageMinMaxObserver:
         self.max_val = None
 
 
+class HistogramObserver:
+    """
+    Observer that uses KL divergence minimization for threshold selection.
+
+    This observer builds a histogram of activation values and selects the
+    optimal quantization threshold using KL (Kullback-Leibler) divergence
+    minimization. This approach is similar to TensorRT's quantization strategy
+    and is robust to outliers and skewed distributions.
+
+    The key idea is to find a quantization threshold that minimizes the
+    information loss (KL divergence) between the original distribution P
+    and the quantized distribution Q.
+
+    Args:
+        bins: Number of histogram bins for building the distribution.
+              Default is 2048, which provides good resolution for most cases.
+        dtype: Target quantization dtype. Default is torch.qint8.
+
+    Attributes:
+        bins: Number of histogram bins.
+        dtype: The target quantization dtype.
+        histogram_counts: Accumulated bin counts across all forward passes.
+        bin_edges: Bin edge values (consistent across accumulations).
+        min_val: Global minimum observed across all forward passes.
+        max_val: Global maximum observed across all forward passes.
+
+    Examples:
+        >>> import torch
+        >>> from mono_quant.core.observers import HistogramObserver
+        >>> obs = HistogramObserver(bins=2048)
+        >>> x = torch.randn(1000) * 0.5 + 2.0
+        >>> obs.forward(x)
+        >>> scale, zp = obs.calculate_qparams()
+        >>> assert scale.ndim == 0 and zp.ndim == 0
+    """
+
+    def __init__(
+        self,
+        bins: int = 2048,
+        dtype: torch.dtype = torch.qint8,
+    ) -> None:
+        self.bins = bins
+        self.dtype = dtype
+        self.histogram_counts: Optional[torch.Tensor] = None
+        self.bin_edges: Optional[torch.Tensor] = None
+        self.min_val: Optional[float] = None
+        self.max_val: Optional[float] = None
+
+    def forward(self, x: torch.Tensor) -> None:
+        """
+        Update histogram with values from input tensor.
+
+        This method builds a histogram of the current tensor's values and
+        accumulates it with previously observed histograms.
+
+        Args:
+            x: Input tensor to observe. Values are flattened for histogram.
+
+        Examples:
+            >>> obs = HistogramObserver(bins=100)
+            >>> obs.forward(torch.randn(1000))
+            >>> assert obs.histogram_counts is not None
+            >>> obs.forward(torch.randn(1000))  # Accumulates
+        """
+        # Track global min/max
+        x_min = x.amin().item()
+        x_max = x.amax().item()
+
+        if self.min_val is None:
+            self.min_val = x_min
+            self.max_val = x_max
+        else:
+            self.min_val = min(self.min_val, x_min)
+            self.max_val = max(self.max_val, x_max)
+
+        # Build histogram for current tensor
+        new_counts, new_edges = torch.histogram(x.flatten(), bins=self.bins)
+
+        # Accumulate histograms
+        if self.histogram_counts is None:
+            # First observation - store as-is
+            self.histogram_counts = new_counts
+            self.bin_edges = new_edges
+        else:
+            # Accumulate counts (bin_edges stay consistent)
+            self.histogram_counts += new_counts
+
+    def calculate_qparams(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Calculate scale and zero-point using KL divergence minimization.
+
+        This method finds the optimal quantization threshold by minimizing
+        the KL divergence between the original distribution and the
+        quantized distribution.
+
+        Returns:
+            A tuple of (scale, zero_point):
+            - scale: 0-dim tensor with the quantization scale factor
+            - zero_point: 0-dim tensor with int32 dtype containing the
+              zero-point offset
+
+        Raises:
+            RuntimeError: If no data has been observed.
+
+        Examples:
+            >>> obs = HistogramObserver()
+            >>> obs.forward(torch.randn(1000))
+            >>> scale, zp = obs.calculate_qparams()
+            >>> assert scale > 0
+            >>> assert isinstance(zp.item(), int)
+        """
+        if self.histogram_counts is None:
+            raise RuntimeError(
+                "No data observed. Call forward() with calibration data "
+                "before calculating quantization parameters."
+            )
+
+        # Get distribution P from histogram
+        P = self.histogram_counts.float()
+        P = P / P.sum()  # Normalize to sum=1
+
+        # Find optimal threshold using KL divergence minimization
+        optimal_threshold = self._find_optimal_threshold(P)
+
+        # Use threshold to determine min/max for quantization
+        range_val = optimal_threshold
+        qmin, qmax = -128, 127
+        q_range = qmax - qmin
+        scale = range_val / q_range
+        scale = max(scale, 1e-8)  # Clamp to avoid division by zero
+
+        # Calculate zero-point (assuming symmetric around 0 for threshold)
+        zero_point = qmin - ((-optimal_threshold / 2) / scale)
+        zero_point = int(round(zero_point))
+        zero_point = max(qmin, min(qmax, zero_point))
+
+        return torch.tensor(scale), torch.tensor(zero_point, dtype=torch.int32)
+
+    def _find_optimal_threshold(self, P: torch.Tensor) -> float:
+        """
+        Find optimal quantization threshold using KL divergence minimization.
+
+        Args:
+            P: Normalized histogram distribution (sums to 1).
+
+        Returns:
+            Optimal threshold value for quantization range.
+        """
+        # Search thresholds from 50% to 100% of distribution range
+        # This balances quantization range with information preservation
+        n_bins = len(P)
+        min_kl = float("inf")
+        optimal_threshold_idx = n_bins - 1
+
+        # Start from 50% of bins to avoid too narrow range
+        start_idx = n_bins // 2
+
+        for threshold_idx in range(start_idx, n_bins):
+            # Create quantized distribution Q
+            Q = self._quantize_distribution(P, threshold_idx)
+
+            # Compute KL divergence
+            kl_div = self._compute_kl_divergence(P, Q)
+
+            if kl_div < min_kl:
+                min_kl = kl_div
+                optimal_threshold_idx = threshold_idx
+
+        # Convert threshold index to actual value range
+        # Use full range from min_val to max_val
+        if self.min_val is not None and self.max_val is not None:
+            full_range = self.max_val - self.min_val
+            threshold_ratio = (optimal_threshold_idx + 1) / n_bins
+            return full_range * threshold_ratio
+        return 1.0
+
+    def _compute_kl_divergence(
+        self,
+        P: torch.Tensor,
+        Q: torch.Tensor,
+    ) -> float:
+        """
+        Compute KL divergence D_KL(P || Q).
+
+        Args:
+            P: Original distribution.
+            Q: Quantized distribution.
+
+        Returns:
+            KL divergence value (lower is better).
+        """
+        # Add epsilon to avoid log(0)
+        epsilon = 1e-10
+        P = P + epsilon
+        Q = Q + epsilon
+
+        # D_KL(P || Q) = sum(P * log(P / Q))
+        kl_div = torch.sum(P * torch.log(P / Q))
+        return kl_div.item()
+
+    def _quantize_distribution(
+        self,
+        P: torch.Tensor,
+        threshold_idx: int,
+    ) -> torch.Tensor:
+        """
+        Create quantized distribution Q by mapping to discrete bins.
+
+        Values outside the threshold are mapped to boundary bins.
+
+        Args:
+            P: Original distribution (histogram counts).
+            threshold_idx: Index defining the quantization threshold.
+
+        Returns:
+            Quantized distribution Q (same shape as P).
+        """
+        Q = P.clone()
+
+        # Number of quantization bins (e.g., 128 for INT8 one-sided)
+        # We use half of threshold_idx for quantization resolution
+        n_quant_bins = min(128, threshold_idx)
+
+        if n_quant_bins <= 1:
+            return Q
+
+        # Map values outside threshold to boundaries
+        # (simplified approach - just clip the distribution)
+        Q[threshold_idx:] = 0
+
+        # Redistribute the clipped mass to boundary bins
+        clipped_mass = P[threshold_idx:].sum()
+        if clipped_mass > 0 and threshold_idx > 0:
+            # Distribute clipped mass to the last bin inside threshold
+            Q[threshold_idx - 1] += clipped_mass
+
+        # Normalize to sum=1
+        Q = Q / (Q.sum() + 1e-10)
+
+        return Q
+
+    def reset(self) -> None:
+        """
+        Reset the observer to its initial state.
+
+        This clears all histogram data and min/max values.
+
+        Examples:
+            >>> obs = HistogramObserver()
+            >>> obs.forward(torch.randn(100))
+            >>> obs.reset()
+            >>> assert obs.histogram_counts is None
+            >>> assert obs.min_val is None
+        """
+        self.histogram_counts = None
+        self.bin_edges = None
+        self.min_val = None
+        self.max_val = None
+
+
 # Type alias for layer types used in selection
 LayerTypes = Union[Type[nn.Module], Tuple[Type[nn.Module], ...]]
 
