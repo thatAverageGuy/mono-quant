@@ -6,7 +6,7 @@ converting floating-point weights to quantized representations (INT4, INT8, FP16
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Type, Union
 
 import torch
@@ -44,6 +44,7 @@ class QuantizationInfo:
         original_size_mb: Original model size in MB (if validated).
         quantized_size_mb: Quantized model size in MB (if validated).
         compression_ratio: Compression ratio (original/quantized, if validated).
+        warnings: List of warning messages about potential accuracy issues.
 
     Examples:
         >>> info = QuantizationInfo(
@@ -69,6 +70,8 @@ class QuantizationInfo:
     original_size_mb: Optional[float] = None
     quantized_size_mb: Optional[float] = None
     compression_ratio: Optional[float] = None
+    # Warnings about potential accuracy issues
+    warnings: List[str] = field(default_factory=list)
 
 
 def quantize_weight_int8(
