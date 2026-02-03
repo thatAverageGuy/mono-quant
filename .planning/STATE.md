@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Simple, reliable model quantization with minimal dependencies - just torch, no bloat
-**Current focus:** Phase 1: Core Quantization Foundation
+**Current focus:** Phase 2: Static Quantization & I/O
 
 ## Current Position
 

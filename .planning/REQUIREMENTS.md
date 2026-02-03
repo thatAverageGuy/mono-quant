@@ -100,14 +100,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AGN-01 | Phase 1 | Pending |
-| AGN-02 | Phase 1 | Pending |
-| AGN-03 | Phase 1 | Pending |
-| AGN-04 | Phase 1 | Pending |
-| QCORE-01 | Phase 1 | Pending |
-| QCORE-03 | Phase 1 | Pending |
-| QCORE-04 | Phase 1 | Pending |
-| QCORE-07 | Phase 1 | Pending |
+| AGN-01 | Phase 1 | Complete |
+| AGN-02 | Phase 1 | Complete |
+| AGN-03 | Phase 1 | Complete |
+| AGN-04 | Phase 1 | Complete |
+| QCORE-01 | Phase 1 | Complete |
+| QCORE-03 | Phase 1 | Complete |
+| QCORE-04 | Phase 1 | Complete |
+| QCORE-07 | Phase 1 | Complete |
 | CAL-01 | Phase 2 | Pending |
 | CAL-05 | Phase 2 | Pending |
 | IO-01 | Phase 2 | Pending |
