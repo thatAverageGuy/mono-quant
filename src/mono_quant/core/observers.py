@@ -14,13 +14,40 @@ Available observers:
 
 Layer selection functions provide type-based and name-based filtering for
 selective quantization of model layers.
+
+INT4 Layer Skipping:
+-------------------
+INT4 quantization is aggressive and can significantly impact model accuracy
+if applied to all layers. The default skip list (DEFAULT_INT4_SKIP) excludes
+sensitive layer types (embeddings, normalization) and small layers where
+quantization overhead outweighs compression benefits.
+
+The unified layer skipping API (_get_layers_to_skip) combines:
+- Type-based filtering (skip_layer_types)
+- Name-based filtering (skip_layer_names, modules_to_not_convert)
+- Parameter threshold filtering (skip_param_threshold)
 """
 
-from typing import List, Tuple, Type, Union, Optional
+from typing import Dict, List, Any, Tuple, Type, Union, Optional
 
 import math
 import torch
 import torch.nn as nn
+
+
+# Default INT4 skip list based on research recommendations
+# See: .planning/phases/03-advanced-calibration-&-int4/03-RESEARCH.md
+DEFAULT_INT4_SKIP: Dict[str, Any] = {
+    "skip_types": (
+        nn.Embedding,
+        nn.EmbeddingBag,
+        nn.LayerNorm,
+        nn.BatchNorm1d,
+        nn.BatchNorm2d,
+    ),
+    "skip_param_threshold": 512,  # Skip layers with fewer parameters
+    "skip_names": ["lm_head"],  # Common sensitive output layer
+}
 
 
 class MinMaxObserver:
@@ -759,3 +786,97 @@ def _merge_selection_results(
     all_skipped -= all_selected
 
     return sorted(list(all_selected)), sorted(list(all_skipped))
+
+
+def _get_layers_to_skip(
+    model: nn.Module,
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional[LayerTypes] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
+) -> set:
+    """
+    Build a unified set of layer names to skip during quantization.
+
+    This function provides a unified API for layer skipping by combining
+    multiple filtering strategies:
+    - Direct name list (modules_to_not_convert) - HuggingFace compatible
+    - Type-based filtering (skip_layer_types)
+    - Name pattern matching (skip_layer_names)
+    - Parameter count threshold (skip_param_threshold)
+
+    Args:
+        model: PyTorch model to analyze for layer skipping.
+        modules_to_not_convert: Unified skip list of exact layer names to exclude.
+                                 This is the primary parameter (HuggingFace compatible).
+        skip_layer_types: Optional layer type(s) to exclude from quantization.
+                         Can be a single nn.Module type or a tuple of types.
+        skip_layer_names: Optional list of layer name patterns to exclude.
+        skip_param_threshold: Skip layers with fewer than this many parameters.
+                             Default is 0 (no threshold filtering).
+
+    Returns:
+        A set of layer names to skip during quantization. The set contains
+        exact module names from the model's named_modules() hierarchy.
+
+    Examples:
+        >>> import torch.nn as nn
+        >>> from mono_quant.core.observers import _get_layers_to_skip, DEFAULT_INT4_SKIP
+        >>> model = nn.Sequential(
+        ...     nn.Linear(10, 20),
+        ...     nn.LayerNorm(20),
+        ...     nn.Linear(20, 5),
+        ... )
+        >>> # Skip by direct name list
+        >>> skip1 = _get_layers_to_skip(model, modules_to_not_convert=["1"])
+        >>> assert "1" in skip1
+
+        >>> # Skip by layer type
+        >>> skip2 = _get_layers_to_skip(model, skip_layer_types=(nn.LayerNorm,))
+        >>> assert "1" in skip2
+
+        >>> # Skip by parameter threshold
+        >>> skip3 = _get_layers_to_skip(model, skip_param_threshold=100)
+        >>> # Should skip layers with <100 parameters
+
+        >>> # Use default INT4 skip list
+        >>> skip4 = _get_layers_to_skip(
+        ...     model,
+        ...     modules_to_not_convert=DEFAULT_INT4_SKIP["skip_names"],
+        ...     skip_layer_types=DEFAULT_INT4_SKIP["skip_types"],
+        ...     skip_param_threshold=DEFAULT_INT4_SKIP["skip_param_threshold"],
+        ... )
+    """
+    # Initialize skip_set with direct name list
+    skip_set = set(modules_to_not_convert or [])
+
+    # Add type-based skips
+    if skip_layer_types is not None:
+        # Normalize to tuple if single type
+        if isinstance(skip_layer_types, type):
+            skip_types = (skip_layer_types,)
+        else:
+            skip_types = tuple(skip_layer_types) if skip_layer_types else ()
+
+        # Iterate through model to find matching types
+        for name, module in model.named_modules():
+            if name == "":
+                continue  # Skip root module
+            if isinstance(module, skip_types):
+                skip_set.add(name)
+
+    # Add name-based skips
+    if skip_layer_names:
+        skip_set.update(skip_layer_names)
+
+    # Add parameter threshold skips
+    if skip_param_threshold > 0:
+        for name, module in model.named_modules():
+            if name == "":
+                continue  # Skip root module
+            # Count parameters
+            param_count = sum(p.numel() for p in module.parameters())
+            if param_count < skip_param_threshold:
+                skip_set.add(name)
+
+    return skip_set
