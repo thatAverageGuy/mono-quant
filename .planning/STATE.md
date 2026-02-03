@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 3 of 4 (Advanced Calibration & INT4)
-Plan: 1 of 4 (INT4 Quantization with Group-wise Scaling)
+Plan: 3 of 4 (Layer Skipping and Accuracy Warnings)
 Status: In progress
-Last activity: 2026-02-03 — Completed Plan 03-01 (INT4 Quantization)
+Last activity: 2026-02-03 — Completed Plan 03-03 (Layer Skipping and Accuracy Warnings)
 
-Progress: [████████░░░] 53%
+Progress: [██████████░] 62%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 7.6 min
-- Total execution time: 1.1 hours
+- Total plans completed: 11
+- Average duration: 7.3 min
+- Total execution time: 1.3 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [████████░░░] 53%
 |-------|-------|-------|----------|
 | 1 | 4 | 4 | 8.5 min |
 | 2 | 4 | 4 | 7.5 min |
-| 3 | 1 | 4 | 9.0 min |
+| 3 | 3 | 4 | 5.8 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (11 min), 02-03 (5 min), 02-04 (7 min), 03-01 (9 min)
+- Last 5 plans: 02-02 (11 min), 02-03 (5 min), 02-04 (7 min), 03-01 (9 min), 03-03 (6 min)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -82,6 +82,12 @@ Recent decisions affecting current work:
 - Packed int8 storage for INT4 (PyTorch doesn't have native qint4 support)
 - Bit packing stores 2 INT4 values per INT8 byte for 2x compression over INT8
 - QuantizedLinearInt4 dequantizes during forward pass using per-group parameters
+- DEFAULT_INT4_SKIP list includes Embedding, EmbeddingBag, LayerNorm, BatchNorm1d, BatchNorm2d
+- Default parameter threshold of 512 for skipping small layers
+- Unified layer skipping API with modules_to_not_convert (HuggingFace compatible)
+- SQNR thresholds: <10 dB (critical), <20 dB (warning), >30 dB (good)
+- Accuracy warnings checked automatically after quantization
+- Warnings tracked in QuantizationInfo for user inspection
 
 ### Pending Todos
 
@@ -94,5 +100,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 03-01-PLAN.md (INT4 Quantization)
+Stopped at: Completed 03-03-PLAN.md (Layer Skipping and Accuracy Warnings)
 Resume file: None
