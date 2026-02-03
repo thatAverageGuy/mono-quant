@@ -52,6 +52,7 @@ class ValidationResult:
         weight_range_valid: Whether all quantized weights are within
             valid numerical ranges (no NaN/Inf, reasonable values).
         errors: List of error messages from failed validation checks.
+        warnings: List of warning messages about potential accuracy issues.
 
     Examples:
         >>> result = ValidationResult(
@@ -72,6 +73,7 @@ class ValidationResult:
     load_test_passed: bool = False
     weight_range_valid: bool = False
     errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
 
 def calculate_model_size(model: nn.Module) -> Tuple[float, int]:
@@ -412,9 +414,118 @@ def validate_quantization(
     return result
 
 
+def check_accuracy_warnings(
+    info: "QuantizationInfo",
+    sqnr_warning_threshold: float = 20.0,
+    sqnr_error_threshold: float = 10.0,
+    all_layers_quantized_warning: bool = True,
+    low_calibration_warning: bool = True,
+    on_failure: str = "warn",
+) -> "QuantizationInfo":
+    """
+    Check for accuracy warnings in quantization results.
+
+    This function examines the QuantizationInfo metadata and generates
+    warnings when indicators suggest potential accuracy loss from
+    quantization. Warnings are added to the info.warnings list.
+
+    SQNR thresholds based on industry practice:
+    - >30 dB: Excellent quantization (minimal accuracy loss)
+    - 20-30 dB: Good quantization (acceptable accuracy)
+    - 10-20 dB: Warning (potential accuracy impact)
+    - <10 dB: Critical (significant accuracy loss likely)
+
+    Args:
+        info: QuantizationInfo to check and update with warnings.
+        sqnr_warning_threshold: SQNR below this triggers warning (dB).
+                                Default is 20.0 dB.
+        sqnr_error_threshold: SQNR below this triggers critical error (dB).
+                              Default is 10.0 dB.
+        all_layers_quantized_warning: If True, warn when all layers were
+                                      quantized (aggressive INT4 may need skips).
+        low_calibration_warning: If True, warn when calibration sample count
+                                 is below recommended minimum (50 samples).
+        on_failure: How to handle critical warnings:
+                    - "error": Raise ValueError (for CI/CD)
+                    - "warn": Issue warning via warnings module (default)
+                    - "ignore": Silent
+
+    Returns:
+        The updated QuantizationInfo with warnings populated.
+
+    Raises:
+        ValueError: If on_failure="error" and critical warnings exist.
+
+    Examples:
+        >>> from mono_quant.core.quantizers import QuantizationInfo
+        >>> from mono_quant.io.validation import check_accuracy_warnings
+        >>> import torch
+        >>> info = QuantizationInfo(
+        ...     selected_layers=["0", "1"],
+        ...     skipped_layers=[],
+        ...     calibration_samples_used=100,
+        ...     dtype=torch.qint8,
+        ...     symmetric=False,
+        ...     sqnr_db=8.0,  # Below error threshold
+        ... )
+        >>> info = check_accuracy_warnings(info, on_failure="ignore")
+        >>> assert any("CRITICAL" in w for w in info.warnings)
+
+        CI/CD usage - fail build on critical warnings:
+        >>> try:
+        ...     info = check_accuracy_warnings(info, on_failure="error")
+        ... except ValueError as e:
+        ...     print(f"Build failed: {e}")
+    """
+    # Ensure info has warnings list (for backward compatibility)
+    if not hasattr(info, "warnings"):
+        info.warnings = []
+
+    # Check SQNR if available
+    if info.sqnr_db is not None:
+        if info.sqnr_db < sqnr_error_threshold:
+            info.warnings.append(
+                f"CRITICAL: Very low SQNR ({info.sqnr_db:.2f} dB). "
+                f"Significant accuracy loss likely. Consider INT8 or skipping more layers."
+            )
+        elif info.sqnr_db < sqnr_warning_threshold:
+            info.warnings.append(
+                f"Warning: Low SQNR ({info.sqnr_db:.2f} dB). "
+                f"Quantization may impact accuracy. Verify with task-specific evaluation."
+            )
+
+    # Check if all layers were quantized (aggressive quantization warning)
+    if all_layers_quantized_warning and not info.skipped_layers:
+        info.warnings.append(
+            "All layers were quantized. For INT4, consider skipping embeddings "
+            "and normalization layers to preserve accuracy."
+        )
+
+    # Check calibration sample count
+    if low_calibration_warning and info.calibration_samples_used < 50:
+        info.warnings.append(
+            f"Low calibration sample count ({info.calibration_samples_used}). "
+            f"Recommend at least 100 samples for reliable calibration."
+        )
+
+    # Handle on_failure parameter for critical warnings
+    critical = [w for w in info.warnings if w.startswith("CRITICAL:")]
+    if critical:
+        critical_msg = "; ".join(critical)
+        if on_failure == "error":
+            raise ValueError(critical_msg)
+        elif on_failure == "warn":
+            import warnings
+            warnings.warn(critical_msg, stacklevel=2)
+        # on_failure == "ignore": silent
+
+    return info
+
+
 __all__ = [
     "ValidationResult",
     "calculate_model_size",
     "calculate_sqnr",
     "validate_quantization",
+    "check_accuracy_warnings",
 ]
