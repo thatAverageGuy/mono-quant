@@ -5,12 +5,55 @@ These functions apply actual quantization transformations to tensors,
 converting floating-point weights to quantized representations (INT8, FP16).
 """
 
-from typing import Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
 
 from mono_quant.core.mappers import calculate_scale_zp_per_channel
+
+
+# Type alias for layer types used in selection (re-exported from observers)
+LayerTypes = Union[Type[nn.Module], Tuple[Type[nn.Module], ...]]
+
+# Type alias for calibration data (re-exported from calibration module)
+CalibrationData = Union[List[torch.Tensor], "torch.utils.data.DataLoader"]
+
+
+@dataclass
+class QuantizationInfo:
+    """
+    Metadata about a quantized model.
+
+    This dataclass captures information about what was quantized,
+    how many calibration samples were used, and the quantization
+    parameters applied.
+
+    Attributes:
+        selected_layers: List of layer names that were quantized.
+        skipped_layers: List of layer names that were skipped.
+        calibration_samples_used: Number of calibration samples actually used.
+        dtype: Target quantization dtype (torch.qint8 or torch.float16).
+        symmetric: Whether symmetric quantization was used.
+
+    Examples:
+        >>> info = QuantizationInfo(
+        ...     selected_layers=["0", "2"],
+        ...     skipped_layers=["1"],
+        ...     calibration_samples_used=50,
+        ...     dtype=torch.qint8,
+        ...     symmetric=False
+        ... )
+        >>> print(f"Quantized {len(info.selected_layers)} layers")
+        Quantized 2 layers
+    """
+
+    selected_layers: List[str]
+    skipped_layers: List[str]
+    calibration_samples_used: int
+    dtype: torch.dtype
+    symmetric: bool
 
 
 def quantize_weight_int8(
@@ -235,6 +278,269 @@ def _quantize_fp16_model(
         param.data = param.data.to(torch.float16)
 
     return model_copy, []
+
+
+def static_quantize(
+    model: Union[nn.Module, Dict[str, torch.Tensor]],
+    calibration_data: CalibrationData,
+    dtype: torch.dtype = torch.qint8,
+    symmetric: bool = False,
+    per_channel: bool = True,
+    layer_types: Optional[LayerTypes] = None,
+    skip_types: Optional[LayerTypes] = None,
+    layer_names: Optional[List[str]] = None,
+    skip_names: Optional[List[str]] = None,
+    num_calibration_samples: int = 150,
+    config: Optional["QuantizationConfig"] = None,
+) -> Tuple[nn.Module, QuantizationInfo]:
+    """
+    Statically quantize a PyTorch model using calibration data.
+
+    This function performs static quantization by first running calibration
+    to determine activation ranges, then quantizing selected layers. Layer
+    selection can be done by type (layer_types, skip_types) or by exact name
+    (layer_names, skip_names).
+
+    The function always creates a copy of the model, leaving the original
+    unchanged (per CONTEXT.md requirement).
+
+    Args:
+        model: Either a PyTorch nn.Module or a state_dict. If a state_dict
+            is provided, it will be loaded into a model instance.
+        calibration_data: Calibration data in one of the following formats:
+            - List[torch.Tensor]: Direct list of input tensors
+            - DataLoader: PyTorch DataLoader yielding batches
+        dtype: Target quantization dtype. Options:
+            - torch.qint8: 8-bit signed integer (default)
+            - torch.float16: 16-bit floating point
+        symmetric: If True, use symmetric quantization (zero_point = 0).
+                   If False, use asymmetric quantization. Default is False.
+        per_channel: If True, use per-channel scaling (default).
+                     If False, use per-tensor scaling.
+        layer_types: Optional layer type(s) to select for quantization.
+                     Can be a single nn.Module type or a tuple of types.
+                     If None, defaults to (nn.Linear, nn.Conv2d).
+        skip_types: Optional layer type(s) to exclude from quantization.
+                    Can be a single nn.Module type or a tuple of types.
+        layer_names: Optional list of exact layer names to quantize.
+        skip_names: Optional list of layer names to exclude from quantization.
+        num_calibration_samples: Maximum number of samples to use for calibration.
+                                 Default is 150. Limited by actual data size.
+        config: Optional QuantizationConfig. If provided, its values will
+                override dtype, symmetric, per_channel parameters.
+
+    Returns:
+        A tuple of (quantized_model, quantization_info):
+        - quantized_model: A COPY of the model with quantized layers
+        - quantization_info: QuantizationInfo dataclass with metadata
+
+    Raises:
+        TypeError: If model is not an nn.Module or state_dict.
+        ValueError: If dtype is not supported.
+
+    Examples:
+        >>> import torch.nn as nn
+        >>> from mono_quant import static_quantize
+        >>> model = nn.Sequential(
+        ...     nn.Linear(128, 256),
+        ...     nn.ReLU(),
+        ...     nn.Linear(256, 10)
+        ... )
+        >>> calibration_data = [torch.randn(32, 128) for _ in range(100)]
+        >>> q_model, info = static_quantize(model, calibration_data, layer_types=[nn.Linear])
+        >>> print(f"Quantized {len(info.selected_layers)} layers")
+        Quantized 2 layers
+
+        FP16 static quantization:
+        >>> q_model_fp16, info = static_quantize(model, calibration_data, dtype=torch.float16)
+    """
+    # Local imports to avoid circular dependencies
+    from mono_quant.io.handlers import _prepare_model
+    from mono_quant.calibration.runner import run_calibration
+    from mono_quant.calibration.data import _normalize_calibration_data
+    from mono_quant.core.observers import (
+        MinMaxObserver,
+        _select_layers_by_type,
+        _select_layers_by_name,
+        _merge_selection_results,
+    )
+    from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
+
+    # Handle config override (config priority pattern)
+    if config is not None:
+        dtype = config.dtype
+        if config.symmetric is not None:
+            symmetric = config.symmetric
+        per_channel = config.per_channel
+
+    # Copy model via _prepare_model (preserves original)
+    model_copy = _prepare_model(model)
+
+    # FP16 quantization uses simpler flow (no calibration needed)
+    if dtype == torch.float16:
+        q_model, skipped = _quantize_fp16_model(model_copy)
+        info = QuantizationInfo(
+            selected_layers=[],  # FP16 quantizes all, no layer selection
+            skipped_layers=[],
+            calibration_samples_used=0,  # No calibration for FP16
+            dtype=dtype,
+            symmetric=symmetric,
+        )
+        return q_model, info
+
+    # For INT8 static quantization
+    # Default layer types if not specified
+    if layer_types is None:
+        layer_types = (nn.Linear, nn.Conv2d)
+    elif isinstance(layer_types, type):
+        layer_types = (layer_types,)
+
+    # Normalize skip_types to tuple if provided
+    if skip_types is not None and isinstance(skip_types, type):
+        skip_types = (skip_types,)
+
+    # Step 1: Determine layers to quantize
+    selected_by_type: List[str] = []
+    skipped_by_type: List[str] = []
+    selected_by_name: List[str] = []
+    skipped_by_name: List[str] = []
+
+    # Type-based selection
+    if layer_types is not None:
+        selected_by_type, skipped_by_type = _select_layers_by_type(
+            model_copy, layer_types, skip_types
+        )
+
+    # Name-based selection
+    if layer_names is not None:
+        selected_by_name, skipped_by_name = _select_layers_by_name(
+            model_copy, layer_names, skip_names
+        )
+
+    # Merge selection results
+    selected_layers, skipped_layers = _merge_selection_results(
+        (selected_by_type, skipped_by_type),
+        (selected_by_name, skipped_by_name),
+    )
+
+    # If no layers selected, return copy unchanged
+    if not selected_layers:
+        info = QuantizationInfo(
+            selected_layers=[],
+            skipped_layers=list(skipped_layers),
+            calibration_samples_used=0,
+            dtype=dtype,
+            symmetric=symmetric,
+        )
+        return model_copy, info
+
+    # Step 2: Run calibration (observers track activation ranges)
+    # Note: For weights-only static quantization, calibration is primarily
+    # for determining per-layer activation ranges. The actual quantization
+    # uses weight-based quantization via quantize_weight_int8.
+    observers: Dict[str, MinMaxObserver] = {}
+
+    # Attach observers to selected layers for activation tracking
+    hooks = []
+    for layer_name in selected_layers:
+        try:
+            layer = model_copy.get_submodule(layer_name)
+            observer = MinMaxObserver(dtype=dtype)
+            observers[layer_name] = observer
+
+            # Register forward hook to track activations
+            def hook_fn(module, input, output, obs=observer):
+                obs.forward(output)
+
+            hook = layer.register_forward_hook(hook_fn)
+            hooks.append(hook)
+        except AttributeError:
+            # Layer not found (may have been removed or renamed)
+            continue
+
+    # Run calibration forward passes
+    run_calibration(
+        model_copy,
+        calibration_data,
+        num_samples=num_calibration_samples,
+    )
+
+    # Remove hooks after calibration
+    for hook in hooks:
+        hook.remove()
+
+    # Step 3: Quantize selected layers
+    for layer_name in selected_layers:
+        try:
+            layer = model_copy.get_submodule(layer_name)
+
+            if isinstance(layer, nn.Linear):
+                q_module = quantize_linear_module(layer, dtype=dtype, symmetric=symmetric)
+                # Replace in parent
+                parent_name, child_name = _split_layer_name(layer_name)
+                if parent_name:
+                    parent = model_copy.get_submodule(parent_name)
+                    setattr(parent, child_name, q_module)
+                else:
+                    # Top-level module
+                    setattr(model_copy, child_name, q_module)
+
+            elif isinstance(layer, nn.Conv2d):
+                q_module = quantize_conv2d_module(layer, dtype=dtype, symmetric=symmetric)
+                # Replace in parent
+                parent_name, child_name = _split_layer_name(layer_name)
+                if parent_name:
+                    parent = model_copy.get_submodule(parent_name)
+                    setattr(parent, child_name, q_module)
+                else:
+                    # Top-level module
+                    setattr(model_copy, child_name, q_module)
+
+        except (AttributeError, TypeError):
+            # Layer not found or not quantizable
+            skipped_layers.append(layer_name)
+
+    # Determine actual samples used
+    tensors = _normalize_calibration_data(calibration_data)
+    samples_used = min(len(tensors), num_calibration_samples)
+
+    # Create quantization info
+    info = QuantizationInfo(
+        selected_layers=selected_layers,
+        skipped_layers=skipped_layers,
+        calibration_samples_used=samples_used,
+        dtype=dtype,
+        symmetric=symmetric,
+    )
+
+    return model_copy, info
+
+
+def _split_layer_name(layer_name: str) -> Tuple[Optional[str], str]:
+    """
+    Split a layer name into parent and child components.
+
+    Args:
+        layer_name: Dot-separated layer name (e.g., "encoder.0.weight" or "0")
+
+    Returns:
+        A tuple of (parent_name, child_name):
+        - parent_name: Parent module path, or None for top-level
+        - child_name: Child module name
+
+    Examples:
+        >>> _split_layer_name("encoder.0")
+        ('encoder', '0')
+        >>> _split_layer_name("0")
+        (None, '0')
+        >>> _split_layer_name("model.layer.1.weight")
+        ('model.layer.1', 'weight')
+    """
+    if "." in layer_name:
+        parts = layer_name.rsplit(".", 1)
+        return parts[0], parts[1]
+    else:
+        return None, layer_name
 
 
 def _quantize_int8_model(
