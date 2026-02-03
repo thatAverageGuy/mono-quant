@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 2 of 4 (Static Quantization & I/O)
-Plan: 2 of 4 (Layer Selection API & Static Quantization)
-Status: Plan complete
-Last activity: 2026-02-03 — Completed 02-02-PLAN.md
+Plan: 4 of 4 (Validation Metrics & Public API)
+Status: Phase complete
+Last activity: 2026-02-03 — Completed 02-04-PLAN.md
 
-Progress: [█████░░░░] 50%
+Progress: [████████░░] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 7.7 min
-- Total execution time: 0.8 hours
+- Total plans completed: 7
+- Average duration: 7.4 min
+- Total execution time: 0.9 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 4 | 4 | 8.5 min |
-| 2 | 2 | 4 | 9 min |
+| 2 | 3 | 4 | 7.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-04 (4 min), 02-01 (7 min), 02-02 (11 min)
+- Last 5 plans: 01-04 (4 min), 02-01 (7 min), 02-02 (11 min), 02-04 (7 min)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -70,6 +70,14 @@ Recent decisions affecting current work:
 - [02-02]: QuantizationInfo dataclass provides metadata about what was quantized
 - [02-02]: dequantize_model uses inplace=False default for consistency with static_quantize
 - [02-02]: zero_point clamped to valid range [-128, 127] to prevent runtime errors
+- [02-03]: Safetensors format with comprehensive metadata support
+- [02-03]: Metadata stored as JSON strings (Safetensors constraint)
+- [02-03]: Auto-format detection from file extension (.safetensors, .pt, .pth)
+- [02-03]: Zero-copy loading for Safetensors format
+- [02-04]: Validation runs by default with on_failure='error' behavior
+- [02-04]: SQNR calculation skips dequantized weights (QuantizedLinear stores dequantized weights)
+- [02-04]: Compression ratio from memory footprint (parameters + buffers)
+- [02-04]: Round-trip save/load test with temporary file cleanup
 
 ### Pending Todos
 
@@ -82,5 +90,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 02-02-PLAN.md (layer selection API and static quantization)
+Stopped at: Completed 02-04-PLAN.md (validation metrics and public API)
 Resume file: None
