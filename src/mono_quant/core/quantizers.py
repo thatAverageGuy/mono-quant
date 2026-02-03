@@ -2,9 +2,10 @@
 Quantization transformation functions for weights.
 
 These functions apply actual quantization transformations to tensors,
-converting floating-point weights to quantized representations (INT8, FP16).
+converting floating-point weights to quantized representations (INT4, INT8, FP16).
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Type, Union
 
@@ -12,6 +13,8 @@ import torch
 import torch.nn as nn
 
 from mono_quant.core.mappers import calculate_scale_zp_per_channel
+
+logger = logging.getLogger(__name__)
 
 
 # Type alias for layer types used in selection (re-exported from observers)
@@ -882,3 +885,141 @@ def test_models_from_any_source() -> None:
     print(f"  - HF-like model: {len(skipped_hf)} layers skipped")
     print(f"  - Pretrained-like: Single layer quantized")
     print(f"  - FP16 model: All parameters converted to FP16")
+
+
+def quantize_weight_int4(
+    weight: torch.Tensor,
+    group_size: int = 128,
+    symmetric: bool = True,
+    axis: int = 0,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Quantize a weight tensor to INT4 using group-wise scaling.
+
+    INT4 quantization provides 2x additional compression over INT8 (4 bits vs 8 bits
+    per weight). Group-wise scaling is mandatory for INT4 quantization - per-channel
+    scaling results in unacceptable accuracy loss at 4-bit precision.
+
+    This function uses packed int8 storage (2 INT4 values per int8 byte) since
+    PyTorch doesn't have native torch.qint4 support. The QuantizedLinearInt4
+    module handles dequantization during forward pass.
+
+    Layers smaller than group_size fall back to per-channel INT8 quantization
+    for safety. A warning is logged when this happens.
+
+    Args:
+        weight: Input weight tensor to quantize. For standard PyTorch layer
+            weights, this is typically (out_features, in_features) for Linear
+            or (out_channels, in_channels, kernel_h, kernel_w) for Conv2d.
+        group_size: Number of channels per group. Default is 128, which is the
+                    industry standard used by AWQ, GPTQ, and HuggingFace.
+        symmetric: If True, use symmetric quantization (zero_point = 0).
+                   If False, use asymmetric (affine) quantization. Default is True.
+        axis: The channel axis for group-wise quantization. Default is 0,
+              which corresponds to the output channel dimension for standard
+              PyTorch weight layouts (nn.Linear, nn.Conv2d).
+
+    Returns:
+        A tuple of (packed_weight, scales, zero_points):
+        - packed_weight: Packed int8 tensor with half the elements of input.
+                         Each byte stores two INT4 values.
+        - scales: Per-group scale tensor with shape (num_groups,).
+        - zero_points: Per-group zero-point tensor with shape (num_groups,).
+                       All zeros for symmetric quantization.
+
+    Examples:
+        >>> import torch
+        >>> # Linear layer weight: (out_features=256, in_features=128)
+        >>> w = torch.randn(256, 128)
+        >>> packed, scales, zp = quantize_weight_int4(w, group_size=128)
+        >>> assert packed.dtype == torch.int8
+        >>> assert packed.numel() == w.numel() // 2  # Half the size
+        >>> assert scales.shape[0] == 2  # 256 / 128 = 2 groups
+        >>> assert torch.all(zp == 0)  # Symmetric has zero offset
+
+    Note:
+        INT4 range is [-8, 7] (signed 4-bit integer). The packed int8 storage
+        format follows the standard bit packing pattern: low nibble stores the
+        first value, high nibble stores the second value.
+    """
+    # Local imports to avoid circular dependencies
+    from mono_quant.core.mappers import calculate_scale_zp_groupwise, _pack_int4_to_int8
+
+    if group_size <= 0:
+        raise ValueError(f"group_size must be positive, got {group_size}")
+
+    # Get dimension size along the grouping axis
+    dim_size = weight.shape[axis]
+
+    # Fallback to per-channel INT8 for layers smaller than group_size
+    if dim_size < group_size:
+        logger.warning(
+            f"Layer dimension {dim_size} is smaller than group_size {group_size}. "
+            f"Falling back to per-channel INT8 quantization."
+        )
+        # Use INT8 quantization for small layers
+        q_weight = quantize_weight_int8(weight, symmetric=symmetric, axis=axis)
+        # Extract scales and zero_points from the quantized tensor
+        scale = q_weight.q_per_channel_scales()
+        zero_point = q_weight.int_repr()  # This gives us the int values
+        # For INT8 fallback, we need to return compatible format
+        # Return the int8 representation directly (already packed in a sense)
+        return zero_point.to(torch.int8), scale, torch.zeros_like(scale).to(torch.int32)
+
+    # Calculate group-wise scale and zero-point
+    scales, zero_points = calculate_scale_zp_groupwise(
+        weight, group_size=group_size, axis=axis, symmetric=symmetric
+    )
+
+    # INT4 range: [-8, 7]
+    qmin, qmax = -8, 7
+
+    # Get dimension size and number of groups
+    num_groups = scales.shape[0]
+
+    # Move axis to dim 0 for easier grouping
+    permuted_dims = list(range(weight.dim()))
+    permuted_dims[0], permuted_dims[axis] = permuted_dims[axis], permuted_dims[0]
+    weight_permuted = weight.permute(permuted_dims)
+
+    # Flatten remaining dimensions
+    # Shape: (dim_size, -1)
+    weight_flat = weight_permuted.reshape(dim_size, -1)
+
+    # Quantize each group
+    int4_values = []
+
+    for g in range(num_groups):
+        start_idx = g * group_size
+        end_idx = min(start_idx + group_size, dim_size)
+
+        # Extract group weights
+        group_weights = weight_flat[start_idx:end_idx]
+
+        # Get scale and zero_point for this group
+        group_scale = scales[g].item()
+        group_zp = zero_points[g].item()
+
+        if symmetric:
+            # Symmetric: int4 = round(weight / scale) - 8
+            # The -8 shifts the range from [0, 15] to [-8, 7]
+            int4_group = torch.clamp(
+                (group_weights / group_scale).round().to(torch.int32) - 8,
+                qmin, qmax
+            )
+        else:
+            # Asymmetric: standard affine formula
+            int4_group = torch.clamp(
+                (group_weights / group_scale + group_zp).round().to(torch.int32),
+                qmin, qmax
+            )
+
+        int4_values.append(int4_group)
+
+    # Concatenate all groups
+    int4_tensor = torch.cat(int4_values, dim=0)
+
+    # Pack INT4 values to INT8 (2 values per byte)
+    packed = _pack_int4_to_int8(int4_tensor)
+
+    return packed, scales, zero_points
