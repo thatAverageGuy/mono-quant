@@ -10,17 +10,17 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 3 of 4 (Advanced Calibration & INT4)
-Plan: 2 of 4 (Advanced Observers, INT4, QAT, Calibration Tools)
+Plan: 1 of 4 (INT4 Quantization with Group-wise Scaling)
 Status: In progress
-Last activity: 2026-02-03 — Completed Plan 03-02 (Advanced Observers)
+Last activity: 2026-02-03 — Completed Plan 03-01 (INT4 Quantization)
 
-Progress: [██████████░] 56%
+Progress: [████████░░░] 53%
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 9
-- Average duration: 7.4 min
+- Average duration: 7.6 min
 - Total execution time: 1.1 hours
 
 **By Phase:**
@@ -29,10 +29,10 @@ Progress: [██████████░] 56%
 |-------|-------|-------|----------|
 | 1 | 4 | 4 | 8.5 min |
 | 2 | 4 | 4 | 7.5 min |
-| 3 | 1 | 4 | 7.0 min |
+| 3 | 1 | 4 | 9.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-04 (7 min), 03-01 (7 min), 03-02 (7 min)
+- Last 5 plans: 02-02 (11 min), 02-03 (5 min), 02-04 (7 min), 03-01 (9 min)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -76,14 +76,12 @@ Recent decisions affecting current work:
 - Zero-point clamped to valid range [-128, 127] to prevent PyTorch runtime errors
 
 **Phase 3:**
-- MovingAverageMinMaxObserver uses EMA smoothing with averaging_constant default 0.01 (PyTorch standard)
-- averaging_constant validated to (0, 1] range to prevent misuse
-- HistogramObserver uses KL divergence minimization for threshold selection (TensorRT-style)
-- KL divergence search range: 50-100% of histogram to avoid overly narrow ranges
-- Histogram bins default: 2048 for good resolution
-- Observer factory pattern: create_observer() accepts flexible string names
-- Auto-selection marked as experimental due to unreliable heuristics
-- All observers share identical interface: forward(), calculate_qparams(), reset()
+- Group size 128 as default for INT4 (industry standard from AWQ, GPTQ, HuggingFace)
+- Symmetric quantization default for INT4 (simpler, faster, good accuracy)
+- Fallback to per-channel INT8 for layers smaller than group_size (safe approach)
+- Packed int8 storage for INT4 (PyTorch doesn't have native qint4 support)
+- Bit packing stores 2 INT4 values per INT8 byte for 2x compression over INT8
+- QuantizedLinearInt4 dequantizes during forward pass using per-group parameters
 
 ### Pending Todos
 
@@ -96,5 +94,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 03-02-PLAN.md (Advanced Observers)
+Stopped at: Completed 03-01-PLAN.md (INT4 Quantization)
 Resume file: None
