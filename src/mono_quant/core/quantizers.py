@@ -309,6 +309,11 @@ def static_quantize(
     config: Optional["QuantizationConfig"] = None,
     on_failure: str = "error",
     run_validation: bool = True,
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional[LayerTypes] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
+    group_size: int = 128,
 ) -> Tuple[nn.Module, QuantizationInfo]:
     """
     Statically quantize a PyTorch model using calibration data.
@@ -355,6 +360,17 @@ def static_quantize(
                     - "warn": Issue warning and continue
                     - "ignore": Silent, just return results
         run_validation: If True (default), run validation after quantization.
+        modules_to_not_convert: Unified skip list of exact layer names to exclude
+                                 (HuggingFace compatible API). Default is None.
+        skip_layer_types: Optional layer type(s) to exclude from quantization.
+                          Combined with modules_to_not_convert for unified skipping.
+        skip_layer_names: Optional list of layer name patterns to exclude.
+                          Combined with modules_to_not_convert for unified skipping.
+        skip_param_threshold: Skip layers with fewer than this many parameters.
+                              Default is 0 (no threshold filtering). For INT4,
+                              a default threshold of 512 is recommended.
+        group_size: Group size for INT4 quantization. Default is 128, which is
+                    the industry standard used by AWQ, GPTQ, and HuggingFace.
 
     Returns:
         A tuple of (quantized_model, quantization_info):
@@ -386,6 +402,15 @@ def static_quantize(
 
         Skip validation for faster iteration:
         >>> q_model, info = static_quantize(model, calibration_data, run_validation=False)
+
+        INT4 quantization with layer skipping:
+        >>> from mono_quant.core.observers import DEFAULT_INT4_SKIP
+        >>> q_model, info = static_quantize(
+        ...     model, calibration_data,
+        ...     modules_to_not_convert=DEFAULT_INT4_SKIP["skip_names"],
+        ...     skip_layer_types=DEFAULT_INT4_SKIP["skip_types"],
+        ...     skip_param_threshold=DEFAULT_INT4_SKIP["skip_param_threshold"],
+        ... )
     """
     # Local imports to avoid circular dependencies
     from mono_quant.io.handlers import _prepare_model
@@ -396,6 +421,8 @@ def static_quantize(
         _select_layers_by_type,
         _select_layers_by_name,
         _merge_selection_results,
+        _get_layers_to_skip,
+        DEFAULT_INT4_SKIP,
     )
     from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
 
@@ -465,6 +492,33 @@ def static_quantize(
         (selected_by_type, skipped_by_type),
         (selected_by_name, skipped_by_name),
     )
+
+    # INT4-specific layer skipping logic
+    # Check if INT4 quantization is requested (indicated by group_size parameter)
+    # For INT4, apply default skip list if no explicit skips provided
+    if group_size > 0 and modules_to_not_convert is None and skip_layer_types is None:
+        # Apply default INT4 skip list
+        skip_layer_types = DEFAULT_INT4_SKIP["skip_types"]
+        skip_param_threshold = DEFAULT_INT4_SKIP["skip_param_threshold"]
+        modules_to_not_convert = DEFAULT_INT4_SKIP["skip_names"].copy()
+
+    # Build unified skip set using _get_layers_to_skip
+    if modules_to_not_convert or skip_layer_types or skip_layer_names or skip_param_threshold > 0:
+        skip_set = _get_layers_to_skip(
+            model_copy,
+            modules_to_not_convert=modules_to_not_convert,
+            skip_layer_types=skip_layer_types,
+            skip_layer_names=skip_layer_names,
+            skip_param_threshold=skip_param_threshold,
+        )
+
+        # Merge skip_set with skipped_layers
+        # Add new skips that aren't already in skipped_layers
+        new_skips = skip_set - set(selected_layers) - set(skipped_layers)
+        skipped_layers.extend(sorted(new_skips))
+
+        # Remove skipped layers from selected_layers
+        selected_layers = [l for l in selected_layers if l not in skip_set]
 
     # If no layers selected, return copy unchanged
     if not selected_layers:
