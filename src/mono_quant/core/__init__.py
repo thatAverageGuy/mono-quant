@@ -1,4 +1,20 @@
-"""Core quantization functionality."""
+"""Core quantization functionality.
+
+This module provides the core quantization API including:
+- Quantization schemes (symmetric, asymmetric)
+- Weight quantization and dequantization functions
+- Dynamic and static quantization
+- Calibration observers for tracking activation ranges
+
+Observers available:
+- MinMaxObserver: Simple min/max tracking (baseline)
+- MovingAverageMinMaxObserver: EMA-based smoothing for outlier handling
+- HistogramObserver: KL divergence minimization for skewed distributions
+
+Choose MovingAverageMinMaxObserver for data with transient spikes or outliers.
+Choose HistogramObserver for data with skewed distributions or heavy tails.
+Use MinMaxObserver for well-behaved, normally distributed activations.
+"""
 
 from mono_quant.core.schemes import (
     QuantizationScheme,
@@ -22,6 +38,8 @@ from mono_quant.core.quantizers import (
 )
 from mono_quant.core.observers import (
     MinMaxObserver,
+    MovingAverageMinMaxObserver,
+    HistogramObserver,
     _select_layers_by_type,
     _select_layers_by_name,
 )
@@ -47,6 +65,8 @@ __all__ = [
     "QuantizationInfo",
     # Observers
     "MinMaxObserver",
+    "MovingAverageMinMaxObserver",
+    "HistogramObserver",
     # Layer selection (internal but exported for advanced use)
     "_select_layers_by_type",
     "_select_layers_by_name",
