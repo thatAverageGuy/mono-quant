@@ -1,3 +1,5 @@
 """Quantization configuration."""
 
-# Public exports will be added in 01-04
+from mono_quant.config.quant_config import QuantizationConfig
+
+__all__ = ["QuantizationConfig"]
