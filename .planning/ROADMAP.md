@@ -12,8 +12,8 @@ Mono Quant delivers simple, reliable model quantization with minimal dependencie
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Core Quantization Foundation** - Model-agnostic quantization with INT8/FP16 support
-- [ ] **Phase 2: Static Quantization & I/O** - Calibration, serialization, and validation
+- [x] **Phase 1: Core Quantization Foundation** - Model-agnostic quantization with INT8/FP16 support
+- [x] **Phase 2: Static Quantization & I/O** - Calibration, serialization, and validation
 - [ ] **Phase 3: Advanced Calibration & INT4** - Group-wise scaling, advanced observers, INT4 support
 - [ ] **Phase 4: User Interfaces** - Python API and CLI for automation and CI/CD
 
@@ -61,10 +61,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Calibration infrastructure (MinMaxObserver, calibration runner, data normalization)
-- [ ] 02-02-PLAN.md — Layer selection API and static_quantize function with calibration
-- [ ] 02-03-PLAN.md — Serialization (PyTorch and Safetensors formats with metadata)
-- [ ] 02-04-PLAN.md — Validation metrics (SQNR, size, load test) and public API integration
+- [x] 02-01-PLAN.md — Calibration infrastructure (MinMaxObserver, calibration runner, data normalization)
+- [x] 02-02-PLAN.md — Layer selection API and static_quantize function with calibration
+- [x] 02-03-PLAN.md — Serialization (PyTorch and Safetensors formats with metadata)
+- [x] 02-04-PLAN.md — Validation metrics (SQNR, size, load test) and public API integration
 
 ### Phase 3: Advanced Calibration & INT4
 
@@ -114,7 +114,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Quantization Foundation | 4/4 | Complete | 2026-02-03 |
-| 2. Static Quantization & I/O | 0/4 | Planning | - |
+| 1. Core Quantization Foundation | 4/4 | Complete ✓ | 2026-02-03 |
+| 2. Static Quantization & I/O | 4/4 | Complete ✓ | 2026-02-03 |
 | 3. Advanced Calibration & INT4 | 0/3 | Not started | - |
 | 4. User Interfaces | 0/2 | Not started | - |
