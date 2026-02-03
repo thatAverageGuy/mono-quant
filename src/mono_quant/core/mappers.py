@@ -97,6 +97,8 @@ def calculate_scale_zp_per_tensor(
     # Convert zero_point to int (for asymmetric; symmetric is already 0)
     if not symmetric:
         zero_point = int(zero_point.item())
+        # Clamp zero_point to valid range [qmin, qmax] to avoid runtime errors
+        zero_point = max(qmin, min(qmax, zero_point))
 
     return scale, zero_point
 
@@ -182,8 +184,10 @@ def calculate_scale_zp_per_channel(
     # Clamp scale (already done for asymmetric, do for symmetric too)
     scale = torch.clamp(scale, min=1e-8)
 
-    # Convert zero_point to int for asymmetric
+    # Convert zero_point to int for asymmetric and clamp to valid range
     if not symmetric:
         zero_point = zero_point.to(torch.int32)
+        # Clamp zero_point to valid range [qmin, qmax] to avoid runtime errors
+        zero_point = torch.clamp(zero_point, qmin, qmax)
 
     return scale, zero_point
