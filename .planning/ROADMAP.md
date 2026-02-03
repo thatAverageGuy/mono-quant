@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Core Quantization Foundation** - Model-agnostic quantization with INT8/FP16 support
 - [x] **Phase 2: Static Quantization & I/O** - Calibration, serialization, and validation
 - [x] **Phase 3: Advanced Calibration & INT4** - Group-wise scaling, advanced observers, INT4 support
-- [ ] **Phase 4: User Interfaces** - Python API and CLI for automation and CI/CD
+- [x] **Phase 4: User Interfaces** - Python API and CLI for automation and CI/CD
 
 ## Phase Details
 
@@ -104,8 +104,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Python API (quantize function, parameter handling)
-- [ ] 04-02: CLI interface (command parsing, progress reporting)
+- [x] 04-01-PLAN.md — Python API (unified quantize function, QuantizationResult, parameter handling)
+- [x] 04-02-PLAN.md — CLI interface (Click subcommands, progress bars, entry points)
 
 ## Progress
 
@@ -117,4 +117,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Core Quantization Foundation | 4/4 | Complete ✓ | 2026-02-03 |
 | 2. Static Quantization & I/O | 4/4 | Complete ✓ | 2026-02-03 |
 | 3. Advanced Calibration & INT4 | 3/3 | Complete ✓ | 2026-02-03 |
-| 4. User Interfaces | 0/2 | Not started | - |
+| 4. User Interfaces | 2/2 | Complete ✓ | 2026-02-03 |
