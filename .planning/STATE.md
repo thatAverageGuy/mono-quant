@@ -9,28 +9,29 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 ## Current Position
 
-Phase: 1 of 4 (Core Quantization Foundation)
-Plan: 4 of 4 (Foundation)
-Status: Phase complete
-Last activity: 2026-02-03 — Completed 01-04-PLAN.md
+Phase: 2 of 4 (Static Quantization & I/O)
+Plan: 1 of 4 (Calibration Infrastructure)
+Status: In progress
+Last activity: 2026-02-03 — Completed 02-01-PLAN.md
 
-Progress: [████████░░] 100%
+Progress: [███░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 8.5 min
-- Total execution time: 0.6 hours
+- Total plans completed: 5
+- Average duration: 8.2 min
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 4 | 4 | 8.5 min |
+| 2 | 1 | 4 | 7 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (12 min), 01-02 (13 min), 01-03 (5 min), 01-04 (4 min)
+- Last 5 plans: 01-01 (12 min), 01-02 (13 min), 01-03 (5 min), 01-04 (4 min), 02-01 (7 min)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -58,6 +59,10 @@ Recent decisions affecting current work:
 - [01-04]: Local imports used in helper functions to avoid circular dependencies
 - [01-04]: FP16 quantization uses simple parameter casting (no layer type filtering)
 - [01-04]: INT8 quantization uses layer-specific approach (Linear, Conv2d only)
+- [02-01]: Custom MinMaxObserver to avoid deprecated torch.ao.quantization APIs (removal in PyTorch 2.10+)
+- [02-01]: 150 sample default for calibration aligns with research (100-200 baseline)
+- [02-01]: Progress bar auto-detection at 50 samples threshold
+- [02-01]: DataLoader (input, target) pattern handled by extracting batch[0]
 
 ### Pending Todos
 
@@ -70,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 01-04-PLAN.md (dynamic quantization API with public exports)
+Stopped at: Completed 02-01-PLAN.md (calibration infrastructure with MinMaxObserver)
 Resume file: None
