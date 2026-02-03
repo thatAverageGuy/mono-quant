@@ -26,6 +26,14 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# Test artifacts
+.pytest_cache/
+.pytest_cache_nodev6/
+test-results/
+htmlcov/
+.coverage
+coverage.xml
+
 # PyInstaller
 *.manifest
 *.spec
@@ -47,6 +55,9 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.pytest_cache_nodev6/
+test-results/
+*.pytest_cache
 
 # Translations
 *.mo

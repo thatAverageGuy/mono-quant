@@ -6,6 +6,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/mono-quant)](https://pypi.org/project/mono-quant/)
 [![License](https://img.shields.io/github/license/thatAverageGuy/mono-quant)](https://github.com/thatAverageGuy/mono-quant/blob/main/LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://thataverageguy.github.io/mono-quant)
+[![CI/CD](https://github.com/thatAverageGuy/mono-quant/actions/workflows/ci.yml/badge.svg)](https://github.com/thatAverageGuy/mono-quant/actions/workflows/ci.yml)
 
 ## What is Mono Quant?
 
