@@ -6,7 +6,13 @@ torch as a required dependency.
 
 ## Public API
 
-### Quantization Functions
+### Unified Quantization
+
+- **quantize**: Unified quantization function (recommended)
+    Single entry point that dispatches to dynamic or static quantization
+    based on parameters. Accepts nn.Module, state_dict, or file path.
+
+### Quantization Functions (Advanced)
 
 - **dynamic_quantize**: Dynamic quantization without calibration data
     Automatically quantizes supported layers (nn.Linear, nn.Conv2d) to INT8 or FP16.
@@ -38,27 +44,37 @@ torch as a required dependency.
 
 ## Quick Start
 
+Unified API (recommended):
+
     >>> import torch.nn as nn
-    >>> from mono_quant import static_quantize, save_model
+    >>> from mono_quant import quantize
     >>> model = nn.Sequential(
     ...     nn.Linear(128, 256),
     ...     nn.ReLU(),
     ...     nn.Linear(256, 10)
     ... )
+    >>> # Dynamic quantization (simple, no calibration needed)
+    >>> result = quantize(model, bits=8, dynamic=True)
+    >>> result.save("quantized.safetensors")
+
+Static quantization (better accuracy, needs calibration):
+
     >>> calibration_data = [torch.randn(32, 128) for _ in range(100)]
+    >>> result = quantize(model, bits=8, calibration_data=calibration_data)
+    >>> print(f"SQNR: {result.info.sqnr_db:.2f} dB")
+    >>> print(f"Compression: {result.info.compression_ratio:.2f}x")
+
+Advanced API with direct access to quantization functions:
+
+    >>> from mono_quant import static_quantize, save_model
     >>> q_model, info = static_quantize(model, calibration_data)
-    >>> print(f"SQNR: {info.sqnr_db:.2f} dB")
-    >>> print(f"Compression: {info.compression_ratio:.2f}x")
     >>> save_model(q_model, "quantized.safetensors")
-
-Dynamic quantization (simpler, no calibration needed):
-
-    >>> from mono_quant import dynamic_quantize
-    >>> model = nn.Sequential(nn.Linear(128, 256), nn.ReLU())
-    >>> q_model, skipped = dynamic_quantize(model, dtype=torch.qint8)
 """
 
 __version__ = "0.1.0"
+
+# Unified API
+from mono_quant.api import quantize
 
 # Configuration
 from mono_quant.config import QuantizationConfig
@@ -76,6 +92,8 @@ from mono_quant.io.validation import ValidationResult, validate_quantization, ch
 __all__ = [
     # Version
     "__version__",
+    # Unified API
+    "quantize",
     # Configuration
     "QuantizationConfig",
     # Quantization functions

@@ -26,6 +26,7 @@ classifiers = [
 dependencies = [
     "torch>=2.0.0",
     "safetensors>=0.4",
+    "tqdm>=4.66",
 ]
 
 [project.optional-dependencies]
