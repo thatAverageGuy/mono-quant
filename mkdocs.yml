@@ -1,0 +1,111 @@
+site_name: Mono Quant
+site_description: Ultra-lightweight, model-agnostic quantization package for PyTorch models
+site_author: thatAverageGuy
+site_url: https://thataverageguy.github.io/mono-quant/
+
+repo_name: thatAverageGuy/mono-quant
+repo_url: https://github.com/thatAverageGuy/mono-quant
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_members_full_path: false
+            merge_init_into_class: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+      - Basic Usage: getting-started/basic-usage.md
+  - User Guide:
+      - Quantization Modes: user-guide/modes.md
+      - Calibration: user-guide/calibration.md
+      - INT4 Quantization: user-guide/int4.md
+      - Layer Skipping: user-guide/layer-skipping.md
+      - Serialization: user-guide/serialization.md
+      - Validation: user-guide/validation.md
+  - CLI Reference:
+      - Overview: cli/index.md
+      - Commands: cli/commands.md
+  - API Reference:
+      - quantize(): api/quantize.md
+      - Configuration: api/config.md
+      - Quantizers: api/quantizers.md
+      - Observers: api/observers.md
+      - I/O: api/io.md
+      - Validation: api/validation.md
+  - Examples:
+      - Dynamic INT8: examples/dynamic-int8.md
+      - Static INT4: examples/static-int4.md
+      - Custom Observer: examples/custom-observer.md
+      - CI/CD Pipeline: examples/cicd.md
+  - Advanced:
+      - Model Agnostic Design: advanced/model-agnostic.md
+      - Accuracy Tips: advanced/accuracy.md
+      - Performance: advanced/performance.md
+  - About:
+      - Release Notes: about/changelog.md
+      - Contributing: about/contributing.md
+      - License: about/license.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/thatAverageGuy/mono-quant
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/mono-quant/
+
+copyright: Copyright &copy; 2026 thatAverageGuy
