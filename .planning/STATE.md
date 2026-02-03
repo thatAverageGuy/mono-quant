@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Simple, reliable model quantization with minimal dependencies - just torch, no bloat
-**Current focus:** Phase 2: Static Quantization & I/O
+**Current focus:** Phase 3: Advanced Calibration & INT4
 
 ## Current Position
 
 Phase: 2 of 4 (Static Quantization & I/O)
-Plan: 4 of 4 (Validation Metrics & Public API)
+Plan: 4 of 4 (Calibration, Serialization, Validation)
 Status: Phase complete
-Last activity: 2026-02-03 — Completed 02-04-PLAN.md
+Last activity: 2026-02-03 — Completed Phase 2 (all 4 plans)
 
-Progress: [████████░░] 100%
+Progress: [██████████] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 7.4 min
-- Total execution time: 0.9 hours
+- Total plans completed: 8
+- Average duration: 7.5 min
+- Total execution time: 1.0 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 4 | 4 | 8.5 min |
-| 2 | 3 | 4 | 7.3 min |
+| 2 | 4 | 4 | 7.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-04 (4 min), 02-01 (7 min), 02-02 (11 min), 02-04 (7 min)
+- Last 5 plans: 02-01 (7 min), 02-02 (11 min), 02-03 (5 min), 02-04 (7 min)
 - Trend: On track
 
 *Updated after each plan completion*
@@ -43,41 +43,36 @@ Progress: [████████░░] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Phase 1]: Model-agnostic design - accept any PyTorch nn.Module or state_dict
-- [Phase 1]: Weights-only approach - simpler API, focused responsibility
-- [Phase 1]: Minimal dependencies - only torch required
-- [01-01]: Torch-only dependency enforced via pyproject.toml (AGN-04)
-- [01-01]: Model copying via deepcopy to preserve original (CONTEXT.md requirement)
-- [01-01]: Configuration priority pattern: kwargs > config > defaults
-- [01-02]: Per-channel reduction over all dimensions EXCEPT axis (standard for nn.Linear/Conv2d)
-- [01-02]: Scale clamped BEFORE zero_point calculation to handle zero-range edge case
-- [01-02]: qint4 removed from dtype range - PyTorch 2.10 doesn't support it yet
-- [01-03]: FP16 quantization uses simple dtype casting (not full quantization pipeline)
-- [01-03]: Per-channel axis=0 for standard PyTorch weight layouts (out_features/out_channels)
-- [01-03]: Bias preserved but not quantized (standard PyTorch quantization practice)
-- [01-03]: Conv2d quantization returns standard nn.Conv2d with dequantized weights
-- [01-04]: Local imports used in helper functions to avoid circular dependencies
-- [01-04]: FP16 quantization uses simple parameter casting (no layer type filtering)
-- [01-04]: INT8 quantization uses layer-specific approach (Linear, Conv2d only)
-- [02-01]: Custom MinMaxObserver to avoid deprecated torch.ao.quantization APIs (removal in PyTorch 2.10+)
-- [02-01]: 150 sample default for calibration aligns with research (100-200 baseline)
-- [02-01]: Progress bar auto-detection at 50 samples threshold
-- [02-01]: DataLoader (input, target) pattern handled by extracting batch[0]
-- [02-02]: Layer type selection with include/skip parameters for flexible quantization
-- [02-02]: Support both module type selection and exact layer name selection
-- [02-02]: Default layer_types=(nn.Linear, nn.Conv2d) for static quantization
-- [02-02]: Calibration runs before quantization to determine activation ranges
-- [02-02]: QuantizationInfo dataclass provides metadata about what was quantized
-- [02-02]: dequantize_model uses inplace=False default for consistency with static_quantize
-- [02-02]: zero_point clamped to valid range [-128, 127] to prevent runtime errors
-- [02-03]: Safetensors format with comprehensive metadata support
-- [02-03]: Metadata stored as JSON strings (Safetensors constraint)
-- [02-03]: Auto-format detection from file extension (.safetensors, .pt, .pth)
-- [02-03]: Zero-copy loading for Safetensors format
-- [02-04]: Validation runs by default with on_failure='error' behavior
-- [02-04]: SQNR calculation skips dequantized weights (QuantizedLinear stores dequantized weights)
-- [02-04]: Compression ratio from memory footprint (parameters + buffers)
-- [02-04]: Round-trip save/load test with temporary file cleanup
+**Phase 1:**
+- Model-agnostic design - accept any PyTorch nn.Module or state_dict
+- Weights-only approach - simpler API, focused responsibility
+- Minimal dependencies - only torch required
+- Torch-only dependency enforced via pyproject.toml (AGN-04)
+- Model copying via deepcopy to preserve original
+- Configuration priority pattern: kwargs > config > defaults
+- Per-channel reduction over all dimensions EXCEPT axis
+- Scale clamped BEFORE zero_point calculation to handle zero-range edge case
+- qint4 removed from dtype range - PyTorch 2.10 doesn't support it yet
+- FP16 quantization uses simple dtype casting (not full quantization pipeline)
+- Per-channel axis=0 for standard PyTorch weight layouts
+- Bias preserved but not quantized
+- Conv2d quantization returns standard nn.Conv2d with dequantized weights
+- Local imports used in helper functions to avoid circular dependencies
+
+**Phase 2:**
+- Custom MinMaxObserver implementation to avoid deprecated torch.ao.quantization APIs (removal in PyTorch 2.10+)
+- Calibration sample count: 150 (aligns with research 100-200 baseline)
+- Progress bar threshold at 50 samples for auto-detection
+- DataLoader (input, target) pattern handled by extracting batch[0]
+- Layer selection supports both include (layer_types) and exclude (skip_types)
+- Layer selection supports both type-based and name-based selection
+- Safetensors metadata values must be strings (JSON-serialize complex types)
+- Safetensors metadata stores all 4 categories (quant params, model arch, versions, metrics)
+- Global + per-layer metadata structure in Safetensors
+- Validation runs by default after quantization
+- Validation includes all 4 checks (SQNR, size, load test, weight range)
+- on_failure parameter configurable (error/warn/ignore)
+- Zero-point clamped to valid range [-128, 127] to prevent PyTorch runtime errors
 
 ### Pending Todos
 
@@ -90,5 +85,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 02-04-PLAN.md (validation metrics and public API)
+Stopped at: Completed Phase 2 execution (all 4 plans, verification passed)
 Resume file: None
