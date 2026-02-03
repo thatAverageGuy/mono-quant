@@ -5,122 +5,79 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Simple, reliable model quantization with minimal dependencies - just torch, no bloat
-**Current focus:** Phase 4: User Interfaces
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 4 of 4 (User Interfaces) - COMPLETE
-Plan: 2 of 2 (CLI)
-Status: Phase complete
-Last activity: 2026-02-03 — Completed 04-02-PLAN.md (CLI)
+Milestone: v1.0 - COMPLETE
+Phase: All 4 phases complete
+Status: Milestone shipped 2026-02-03
+Last activity: 2026-02-03 — Completed v1.0 milestone
 
 Progress: [███████████████] 100%
 
 ## Performance Metrics
 
-**Velocity:**
+**Milestone Stats:**
 - Total plans completed: 13
-- Average duration: 7.0 min
-- Total execution time: 1.5 hours
+- Total phases completed: 4
+- Lines of code: 5,228 Python
+- Files created: 26
+- Requirements delivered: 30/30 (100%)
+- Integration points: 8/8 verified
+- E2E flows: 8/8 working
+- Technical debt: None identified
 
 **By Phase:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1 | 4 | 4 | 8.5 min |
-| 2 | 4 | 4 | 7.5 min |
-| 3 | 3 | 3 | 7.2 min |
-| 4 | 2 | 2 | 5.5 min |
+| Phase | Plans | Avg/Plan | Status |
+|-------|-------|----------|--------|
+| 1 | 4 | 8.5 min | Complete |
+| 2 | 4 | 7.5 min | Complete |
+| 3 | 3 | 7.2 min | Complete |
+| 4 | 2 | 5.5 min | Complete |
 
-**Recent Trend:**
-- Last 5 plans: 02-02 (11 min), 02-03 (5 min), 02-04 (7 min), 03-01 (9 min), 04-01 (3 min), 04-02 (8 min)
-- Trend: On track
-
-*Updated after each plan completion*
+*Updated after milestone completion*
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Decisions are logged in PROJECT.md Key Decisions table with outcomes.
 
-**Phase 1:**
-- Model-agnostic design - accept any PyTorch nn.Module or state_dict
-- Weights-only approach - simpler API, focused responsibility
-- Minimal dependencies - only torch required
-- Torch-only dependency enforced via pyproject.toml (AGN-04)
-- Model copying via deepcopy to preserve original
-- Configuration priority pattern: kwargs > config > defaults
-- Per-channel reduction over all dimensions EXCEPT axis
-- Scale clamped BEFORE zero_point calculation to handle zero-range edge case
-- qint4 removed from dtype range - PyTorch 2.10 doesn't support it yet
-- FP16 quantization uses simple dtype casting (not full quantization pipeline)
-- Per-channel axis=0 for standard PyTorch weight layouts
-- Bias preserved but not quantized
-- Conv2d quantization returns standard nn.Conv2d with dequantized weights
-- Local imports used in helper functions to avoid circular dependencies
-
-**Phase 2:**
-- Custom MinMaxObserver implementation to avoid deprecated torch.ao.quantization APIs (removal in PyTorch 2.10+)
-- Calibration sample count: 150 (aligns with research 100-200 baseline)
-- Progress bar threshold at 50 samples for auto-detection
-- DataLoader (input, target) pattern handled by extracting batch[0]
-- Layer selection supports both include (layer_types) and exclude (skip_types)
-- Layer selection supports both type-based and name-based selection
-- Safetensors metadata values must be strings (JSON-serialize complex types)
-- Safetensors metadata stores all 4 categories (quant params, model arch, versions, metrics)
-- Global + per-layer metadata structure in Safetensors
-- Validation runs by default after quantization
-- Validation includes all 4 checks (SQNR, size, load test, weight range)
-- on_failure parameter configurable (error/warn/ignore)
-- Zero-point clamped to valid range [-128, 127] to prevent PyTorch runtime errors
-
-**Phase 3:**
-- Group size 128 as default for INT4 (industry standard from AWQ, GPTQ, HuggingFace)
-- Symmetric quantization default for INT4 (simpler, faster, good accuracy)
-- Fallback to per-channel INT8 for layers smaller than group_size (safe approach)
-- Packed int8 storage for INT4 (PyTorch doesn't have native qint4 support)
-- Bit packing stores 2 INT4 values per INT8 byte for 2x compression over INT8
-- QuantizedLinearInt4 dequantizes during forward pass using per-group parameters
-- DEFAULT_INT4_SKIP list includes Embedding, EmbeddingBag, LayerNorm, BatchNorm1d, BatchNorm2d
-- Default parameter threshold of 512 for skipping small layers
-- Unified layer skipping API with modules_to_not_convert (HuggingFace compatible)
-- SQNR thresholds: <10 dB (critical), <20 dB (warning), >30 dB (good)
-- Accuracy warnings checked automatically after quantization
-- Warnings tracked in QuantizationInfo for user inspection
-
-**Phase 4:**
-- Unified quantize() function dispatches to dynamic_quantize or static_quantize based on dynamic flag
-- bits parameter (4/8/16) maps to dtype internally (4/8 -> qint8, 16 -> float16)
-- scheme parameter uses string values ("symmetric"/"asymmetric") instead of enum for simpler API
-- Hybrid error approach: exceptions raise, but QuantizationResult also has .success flag
-- show_progress parameter defaults to False (silent for library use)
-- QuantizationResult provides .save() and .validate() convenience methods
-- Custom exception hierarchy with actionable suggestions (MonoQuantError base class)
-- Click 8.1+ for CLI framework with git-style subcommands (quantize, validate, info, compare, calibrate)
-- CLI progress bars use tqdm with CI/TTY detection (disabled in CI environments)
-- Both short (-b) and long (--bits) flag options for usability
-- Auto-naming for output files: <input>_quantized.<ext> by default
-- --strict flag for CI/CD error handling (exit immediately vs warn and continue)
-- Dual entry points: monoquant and mq commands via console_scripts
+**Key Outcomes:**
+- ✓ Model-agnostic design verified - works with any PyTorch model
+- ✓ Weights-only approach proven - clean API with _prepare_model()
+- ✓ CLI + Python API delivered - both interfaces working
+- ✓ Build-phase only validated - no runtime dependencies
+- ✓ Local imports pattern fixed circular dependencies
+- ✓ Group-wise INT4 scaling achieves 2x compression with skip list protection
 
 ### Pending Todos
 
-None yet.
+**Post-Release Tasks:**
+- PyPI distribution
+- Documentation site with examples
+- Performance benchmarks
+- User guide and tutorials
 
 ### Blockers/Concerns
 
-None yet.
+None. Milestone completed successfully.
 
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 04-02-PLAN.md (CLI) - ALL PLANS COMPLETE
+Stopped at: v1.0 milestone complete
 Resume file: None
 
-**Project Status: PHASE 4 COMPLETE - ALL CORE FEATURES IMPLEMENTED**
-- Core quantization engine (Phases 1-3)
-- Python API with unified quantize() function (04-01)
-- CLI with git-style subcommands (04-02)
-- Ready for testing, documentation, and distribution
+**Project Status: V1.0 MILESTONE SHIPPED**
+- All core features implemented and verified
+- 30 requirements delivered (100%)
+- Cross-phase integration verified
+- E2E flows working
+- Ready for distribution and next milestone planning
+
+**Next Steps:**
+- Run `/gsd:new-milestone` to plan next milestone
+- Or focus on distribution (PyPI, documentation, benchmarks)
