@@ -14,6 +14,7 @@ from mono_quant.core.quantizers import (
     quantize_weight_int8,
     quantize_weight_fp16,
     dequantize_weight,
+    dequantize_model,
     dynamic_quantize,
     static_quantize,
     QuantizationInfo,
@@ -38,6 +39,7 @@ __all__ = [
     "quantize_weight_int8",
     "quantize_weight_fp16",
     "dequantize_weight",
+    "dequantize_model",
     # Dynamic quantization
     "dynamic_quantize",
     # Static quantization

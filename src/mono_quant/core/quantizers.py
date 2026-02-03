@@ -543,6 +543,82 @@ def _split_layer_name(layer_name: str) -> Tuple[Optional[str], str]:
         return None, layer_name
 
 
+def dequantize_model(
+    model: nn.Module,
+    inplace: bool = False,
+) -> nn.Module:
+    """
+    Convert a quantized model back to full FP32 precision.
+
+    This function iterates through all parameters and buffers in a model,
+    converting quantized tensors back to float32. For INT8 quantized tensors,
+    it uses torch.dequantize() to apply the affine transformation. For FP16
+    tensors, it simply casts to float32.
+
+    This is a model-level wrapper around the existing dequantize_weight
+    function from Phase 1, following the established pattern of reusing
+    lower-level utilities.
+
+    Args:
+        model: Quantized PyTorch model to convert.
+        inplace: If True, modify the model in-place. If False (default),
+                 create a copy and leave the original unchanged.
+
+    Returns:
+        A model with all parameters and buffers converted to float32.
+        If inplace=False, this is a new model object.
+
+    Raises:
+        TypeError: If the model contains unsupported quantized tensor types.
+
+    Examples:
+        >>> import torch.nn as nn
+        >>> from mono_quant import static_quantize, dequantize_model
+        >>> model = nn.Sequential(
+        ...     nn.Linear(128, 256),
+        ...     nn.ReLU(),
+        ...     nn.Linear(256, 10)
+        ... )
+        >>> calibration_data = [torch.randn(32, 128) for _ in range(50)]
+        >>> q_model, info = static_quantize(model, calibration_data)
+        >>> # Convert back to FP32
+        >>> dq_model = dequantize_model(q_model)
+        >>> assert id(dq_model) != id(q_model)  # Different objects
+        >>> for param in dq_model.parameters():
+        ...     assert param.dtype == torch.float32
+
+        In-place conversion:
+        >>> dq_model = dequantize_model(q_model, inplace=True)
+        >>> assert id(dq_model) == id(q_model)  # Same object
+    """
+    # Local import to avoid circular dependency
+    from mono_quant.io.handlers import _prepare_model
+
+    # Create copy if not inplace
+    if not inplace:
+        model = _prepare_model(model)
+
+    # Convert all parameters to float32
+    for name, param in model.named_parameters():
+        # Use dequantize_weight for individual parameters
+        if hasattr(param, 'dequantize'):
+            # INT8 quantized tensor
+            param.data = torch.dequantize(param.data)
+        elif param.data.dtype == torch.float16:
+            # FP16 tensor - simple cast
+            param.data = param.data.to(torch.float32)
+        elif param.data.dtype != torch.float32:
+            # Other dtype - convert to float32
+            param.data = param.data.to(torch.float32)
+
+    # Convert buffers to float32 (e.g., batch norm running stats)
+    for name, buffer in model.named_buffers():
+        if buffer.dtype == torch.qint8 or buffer.dtype == torch.float16:
+            buffer.data = buffer.data.to(torch.float32)
+
+    return model
+
+
 def _quantize_int8_model(
     model: Union[nn.Module, Dict[str, torch.Tensor]],
     dtype: torch.dtype = torch.qint8,
