@@ -17,6 +17,7 @@ from mono_quant.core.quantizers import (
     dynamic_quantize,
     test_models_from_any_source,
 )
+from mono_quant.core.observers import MinMaxObserver
 
 __all__ = [
     # Schemes
@@ -34,4 +35,6 @@ __all__ = [
     # Dynamic quantization
     "dynamic_quantize",
     "test_models_from_any_source",
+    # Observers
+    "MinMaxObserver",
 ]
