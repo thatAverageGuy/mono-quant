@@ -56,6 +56,8 @@ class QuantizationInfo:
         selected_layers: List of layer names that were quantized
         calibration_samples_used: Number of calibration samples used
         scheme: Quantization scheme ("symmetric" or "asymmetric")
+        group_size: Group size for INT4 quantization (None for INT8/FP16)
+        bits: Bits per weight (4 for INT4, 8 for INT8, 16 for FP16)
     """
 
     dtype: torch.dtype
@@ -64,6 +66,8 @@ class QuantizationInfo:
     selected_layers: List[str] = field(default_factory=list)
     calibration_samples_used: Optional[int] = None
     scheme: str = "symmetric"
+    group_size: Optional[int] = None
+    bits: Optional[int] = None
 
 
 def _build_metadata(
@@ -99,6 +103,11 @@ def _build_metadata(
         metadata["selected_layers"] = json.dumps(quantization_info.selected_layers)
         if quantization_info.calibration_samples_used is not None:
             metadata["calibration_samples"] = str(quantization_info.calibration_samples_used)
+        # INT4-specific metadata
+        if quantization_info.group_size is not None:
+            metadata["group_size"] = str(quantization_info.group_size)
+        if quantization_info.bits is not None:
+            metadata["bits"] = str(quantization_info.bits)
 
     # Add version information
     try:
