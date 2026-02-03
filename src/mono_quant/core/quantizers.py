@@ -28,7 +28,8 @@ class QuantizationInfo:
 
     This dataclass captures information about what was quantized,
     how many calibration samples were used, and the quantization
-    parameters applied.
+    parameters applied. Validation metrics are included if validation
+    was run during quantization.
 
     Attributes:
         selected_layers: List of layer names that were quantized.
@@ -36,6 +37,10 @@ class QuantizationInfo:
         calibration_samples_used: Number of calibration samples actually used.
         dtype: Target quantization dtype (torch.qint8 or torch.float16).
         symmetric: Whether symmetric quantization was used.
+        sqnr_db: Signal-to-Quantization-Noise Ratio in dB (if validated).
+        original_size_mb: Original model size in MB (if validated).
+        quantized_size_mb: Quantized model size in MB (if validated).
+        compression_ratio: Compression ratio (original/quantized, if validated).
 
     Examples:
         >>> info = QuantizationInfo(
@@ -43,7 +48,9 @@ class QuantizationInfo:
         ...     skipped_layers=["1"],
         ...     calibration_samples_used=50,
         ...     dtype=torch.qint8,
-        ...     symmetric=False
+        ...     symmetric=False,
+        ...     sqnr_db=32.5,
+        ...     compression_ratio=4.0
         ... )
         >>> print(f"Quantized {len(info.selected_layers)} layers")
         Quantized 2 layers
@@ -54,6 +61,11 @@ class QuantizationInfo:
     calibration_samples_used: int
     dtype: torch.dtype
     symmetric: bool
+    # Validation metrics (optional, populated if validation run)
+    sqnr_db: Optional[float] = None
+    original_size_mb: Optional[float] = None
+    quantized_size_mb: Optional[float] = None
+    compression_ratio: Optional[float] = None
 
 
 def quantize_weight_int8(
@@ -292,6 +304,8 @@ def static_quantize(
     skip_names: Optional[List[str]] = None,
     num_calibration_samples: int = 150,
     config: Optional["QuantizationConfig"] = None,
+    on_failure: str = "error",
+    run_validation: bool = True,
 ) -> Tuple[nn.Module, QuantizationInfo]:
     """
     Statically quantize a PyTorch model using calibration data.
@@ -303,6 +317,11 @@ def static_quantize(
 
     The function always creates a copy of the model, leaving the original
     unchanged (per CONTEXT.md requirement).
+
+    Validation is run automatically after quantization to ensure model
+    integrity. Validation includes SQNR calculation, model size comparison,
+    load/run testing, and weight range checks. Use `run_validation=False`
+    to skip validation or `on_failure` to control failure behavior.
 
     Args:
         model: Either a PyTorch nn.Module or a state_dict. If a state_dict
@@ -328,15 +347,22 @@ def static_quantize(
                                  Default is 150. Limited by actual data size.
         config: Optional QuantizationConfig. If provided, its values will
                 override dtype, symmetric, per_channel parameters.
+        on_failure: How to handle validation failures. Options:
+                    - "error": Raise exception (default)
+                    - "warn": Issue warning and continue
+                    - "ignore": Silent, just return results
+        run_validation: If True (default), run validation after quantization.
 
     Returns:
         A tuple of (quantized_model, quantization_info):
         - quantized_model: A COPY of the model with quantized layers
-        - quantization_info: QuantizationInfo dataclass with metadata
+        - quantization_info: QuantizationInfo dataclass with metadata including
+                             validation metrics (SQNR, size, compression ratio)
 
     Raises:
         TypeError: If model is not an nn.Module or state_dict.
-        ValueError: If dtype is not supported.
+        ValueError: If dtype is not supported or validation fails with
+                    on_failure="error".
 
     Examples:
         >>> import torch.nn as nn
@@ -350,9 +376,13 @@ def static_quantize(
         >>> q_model, info = static_quantize(model, calibration_data, layer_types=[nn.Linear])
         >>> print(f"Quantized {len(info.selected_layers)} layers")
         Quantized 2 layers
+        >>> print(f"SQNR: {info.sqnr_db:.2f} dB, Compression: {info.compression_ratio:.2f}x")
 
         FP16 static quantization:
         >>> q_model_fp16, info = static_quantize(model, calibration_data, dtype=torch.float16)
+
+        Skip validation for faster iteration:
+        >>> q_model, info = static_quantize(model, calibration_data, run_validation=False)
     """
     # Local imports to avoid circular dependencies
     from mono_quant.io.handlers import _prepare_model
@@ -376,6 +406,9 @@ def static_quantize(
     # Copy model via _prepare_model (preserves original)
     model_copy = _prepare_model(model)
 
+    # Keep reference to original for validation
+    original_model = model
+
     # FP16 quantization uses simpler flow (no calibration needed)
     if dtype == torch.float16:
         q_model, skipped = _quantize_fp16_model(model_copy)
@@ -386,6 +419,13 @@ def static_quantize(
             dtype=dtype,
             symmetric=symmetric,
         )
+
+        # Run validation if requested
+        if run_validation:
+            info = _run_validation_and_update_info(
+                original_model, q_model, info, on_failure
+            )
+
         return q_model, info
 
     # For INT8 static quantization
@@ -513,6 +553,12 @@ def static_quantize(
         symmetric=symmetric,
     )
 
+    # Run validation if requested
+    if run_validation:
+        info = _run_validation_and_update_info(
+            original_model, model_copy, info, on_failure
+        )
+
     return model_copy, info
 
 
@@ -541,6 +587,47 @@ def _split_layer_name(layer_name: str) -> Tuple[Optional[str], str]:
         return parts[0], parts[1]
     else:
         return None, layer_name
+
+
+def _run_validation_and_update_info(
+    original: Union[nn.Module, Dict[str, torch.Tensor]],
+    quantized: nn.Module,
+    info: QuantizationInfo,
+    on_failure: str,
+) -> QuantizationInfo:
+    """
+    Run validation and update QuantizationInfo with results.
+
+    This helper function encapsulates the validation logic to avoid
+    code duplication in static_quantize.
+
+    Args:
+        original: Original model or state_dict.
+        quantized: Quantized model to validate.
+        info: QuantizationInfo to update with validation results.
+        on_failure: How to handle validation failures.
+
+    Returns:
+        Updated QuantizationInfo with validation metrics populated.
+    """
+    # Local import to avoid circular dependency
+    from mono_quant.io.validation import validate_quantization
+
+    # Prepare original model for validation (if it's a state_dict, we can't validate)
+    # In that case, skip validation
+    if isinstance(original, dict):
+        return info
+
+    # Run validation
+    result = validate_quantization(original, quantized, on_failure=on_failure)
+
+    # Update info with validation results
+    info.sqnr_db = result.sqnr_db
+    info.original_size_mb = result.original_size_mb
+    info.quantized_size_mb = result.quantized_size_mb
+    info.compression_ratio = result.compression_ratio
+
+    return info
 
 
 def dequantize_model(
