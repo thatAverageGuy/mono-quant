@@ -2,7 +2,8 @@
 
 import torch
 import torch.nn as nn
-from mono_quant import quantize, QuantizationConfig
+
+from mono_quant import QuantizationConfig, quantize
 
 
 class SimpleModel(nn.Module):
