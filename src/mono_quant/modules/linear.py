@@ -173,6 +173,120 @@ class QuantizedLinear(nn.Module):
             f"bias={self.bias is not None}"
         )
 
+    def _save_to_state_dict(self, destination, prefix, keep_vars):
+        """
+        Custom serialization to include quantized weight metadata.
+
+        This method saves the quantized weight along with its scale and
+        zero_point information, enabling proper reconstruction during loading.
+
+        Args:
+            destination: State dictionary to save to.
+            prefix: Prefix for keys in state dict.
+            keep_vars: Whether to keep variables as-is.
+        """
+        # Call parent implementation first
+        super()._save_to_state_dict(destination, prefix, keep_vars)
+
+        # Save quantized weight metadata if present
+        if self._quantized_weight is not None:
+            # Save the int8 representation
+            destination[prefix + "_quantized_weight_int8"] = (
+                self._quantized_weight.int_repr()
+            )
+            # Save per-channel scales
+            destination[prefix + "_scale"] = (
+                self._quantized_weight.q_per_channel_scales()
+            )
+            # Save per-channel zero_points
+            destination[prefix + "_zero_point"] = (
+                self._quantized_weight.q_per_channel_zero_points()
+            )
+            # Save axis
+            destination[prefix + "_axis"] = torch.tensor(
+                self._quantized_weight.q_per_channel_axis()
+            )
+
+    def _load_from_state_dict(
+        self, state_dict, prefix, local_metadata, strict,
+        missing_keys, unexpected_keys, error_msgs
+    ):
+        """
+        Custom deserialization to restore quantized weights.
+
+        This method reconstructs the quantized weight from saved metadata.
+
+        Args:
+            state_dict: State dictionary to load from.
+            prefix: Prefix for keys in state dict.
+            local_metadata: Local metadata.
+            strict: Whether to enforce strict key matching.
+            missing_keys: List of missing keys (will be populated).
+            unexpected_keys: List of unexpected keys (will be populated).
+            error_msgs: List of error messages (will be populated).
+        """
+        # Check if we have quantized weight metadata
+        quantized_key = prefix + "_quantized_weight_int8"
+        scale_key = prefix + "_scale"
+        zero_point_key = prefix + "_zero_point"
+        axis_key = prefix + "_axis"
+
+        # If all quantized metadata is present, reconstruct the quantized weight
+        if all(k in state_dict for k in [quantized_key, scale_key, zero_point_key, axis_key]):
+            # Extract metadata from state_dict
+            int8_data = state_dict.pop(quantized_key)
+            scale = state_dict.pop(scale_key)
+            zero_point = state_dict.pop(zero_point_key)
+            axis = state_dict.pop(axis_key).item()
+
+            # Convert int8_data back to the original int8 dtype
+            # int_repr() returns an int8 tensor, we need to keep it as int8
+            int8_data = int8_data.to(torch.int8)
+
+            # Reconstruct quantized weight using dequantize-requantize approach
+            # This ensures the quantized tensor is reconstructed correctly
+
+            # For per-channel quantization, apply scale/zp per channel
+            # Convert to int32 to avoid overflow
+            int8_data_int32 = int8_data.to(torch.int32)
+
+            # Dequantize: float_value = (int8_value - zero_point) * scale
+            # We need to properly reshape scale/zero_point for broadcasting
+            # based on the weight shape and axis
+
+            # Get the number of dimensions in the weight
+            ndim = int8_data.dim()
+
+            # Reshape scale and zero_point to broadcast correctly
+            # For axis=0 (per-channel along first dimension):
+            # - Linear: (out_features, in_features) -> scale/zero_point: (out_features, 1)
+            # - Conv2d: (out_channels, in_channels, h, w) -> scale/zero_point: (out_channels, 1, 1, 1)
+
+            # Create shape for expanding scale/zero_point
+            shape = [1] * ndim
+            shape[axis] = scale.shape[0]
+
+            scale_expanded = scale.reshape(shape).to(torch.float)
+            zero_point_expanded = zero_point.reshape(shape).to(torch.float)
+
+            # Dequantize to float
+            dequantized = (int8_data_int32.to(torch.float) - zero_point_expanded) * scale_expanded
+
+            # Now requantize with proper scale/zero_point
+            self._quantized_weight = torch.quantize_per_channel(
+                dequantized,
+                scales=scale,
+                zero_points=zero_point.int(),
+                axis=axis,
+                dtype=torch.qint8
+            )
+
+        # Call parent implementation for other parameters (bias, etc.)
+        super()._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict,
+            missing_keys, unexpected_keys, error_msgs
+        )
+
 
 def quantize_linear_module(
     module: nn.Linear,
@@ -420,6 +534,120 @@ class QuantizedConv2d(nn.Module):
             f"dtype={self.dtype}, "
             f"symmetric={self.symmetric}, "
             f"bias={self.bias is not None}"
+        )
+
+    def _save_to_state_dict(self, destination, prefix, keep_vars):
+        """
+        Custom serialization to include quantized weight metadata.
+
+        This method saves the quantized weight along with its scale and
+        zero_point information, enabling proper reconstruction during loading.
+
+        Args:
+            destination: State dictionary to save to.
+            prefix: Prefix for keys in state dict.
+            keep_vars: Whether to keep variables as-is.
+        """
+        # Call parent implementation first
+        super()._save_to_state_dict(destination, prefix, keep_vars)
+
+        # Save quantized weight metadata if present
+        if self._quantized_weight is not None:
+            # Save the int8 representation
+            destination[prefix + "_quantized_weight_int8"] = (
+                self._quantized_weight.int_repr()
+            )
+            # Save per-channel scales
+            destination[prefix + "_scale"] = (
+                self._quantized_weight.q_per_channel_scales()
+            )
+            # Save per-channel zero_points
+            destination[prefix + "_zero_point"] = (
+                self._quantized_weight.q_per_channel_zero_points()
+            )
+            # Save axis
+            destination[prefix + "_axis"] = torch.tensor(
+                self._quantized_weight.q_per_channel_axis()
+            )
+
+    def _load_from_state_dict(
+        self, state_dict, prefix, local_metadata, strict,
+        missing_keys, unexpected_keys, error_msgs
+    ):
+        """
+        Custom deserialization to restore quantized weights.
+
+        This method reconstructs the quantized weight from saved metadata.
+
+        Args:
+            state_dict: State dictionary to load from.
+            prefix: Prefix for keys in state dict.
+            local_metadata: Local metadata.
+            strict: Whether to enforce strict key matching.
+            missing_keys: List of missing keys (will be populated).
+            unexpected_keys: List of unexpected keys (will be populated).
+            error_msgs: List of error messages (will be populated).
+        """
+        # Check if we have quantized weight metadata
+        quantized_key = prefix + "_quantized_weight_int8"
+        scale_key = prefix + "_scale"
+        zero_point_key = prefix + "_zero_point"
+        axis_key = prefix + "_axis"
+
+        # If all quantized metadata is present, reconstruct the quantized weight
+        if all(k in state_dict for k in [quantized_key, scale_key, zero_point_key, axis_key]):
+            # Extract metadata from state_dict
+            int8_data = state_dict.pop(quantized_key)
+            scale = state_dict.pop(scale_key)
+            zero_point = state_dict.pop(zero_point_key)
+            axis = state_dict.pop(axis_key).item()
+
+            # Convert int8_data back to the original int8 dtype
+            # int_repr() returns an int8 tensor, we need to keep it as int8
+            int8_data = int8_data.to(torch.int8)
+
+            # Reconstruct quantized weight using dequantize-requantize approach
+            # This ensures the quantized tensor is reconstructed correctly
+
+            # For per-channel quantization, apply scale/zp per channel
+            # Convert to int32 to avoid overflow
+            int8_data_int32 = int8_data.to(torch.int32)
+
+            # Dequantize: float_value = (int8_value - zero_point) * scale
+            # We need to properly reshape scale/zero_point for broadcasting
+            # based on the weight shape and axis
+
+            # Get the number of dimensions in the weight
+            ndim = int8_data.dim()
+
+            # Reshape scale and zero_point to broadcast correctly
+            # For axis=0 (per-channel along first dimension):
+            # - Linear: (out_features, in_features) -> scale/zero_point: (out_features, 1)
+            # - Conv2d: (out_channels, in_channels, h, w) -> scale/zero_point: (out_channels, 1, 1, 1)
+
+            # Create shape for expanding scale/zero_point
+            shape = [1] * ndim
+            shape[axis] = scale.shape[0]
+
+            scale_expanded = scale.reshape(shape).to(torch.float)
+            zero_point_expanded = zero_point.reshape(shape).to(torch.float)
+
+            # Dequantize to float
+            dequantized = (int8_data_int32.to(torch.float) - zero_point_expanded) * scale_expanded
+
+            # Now requantize with proper scale/zero_point
+            self._quantized_weight = torch.quantize_per_channel(
+                dequantized,
+                scales=scale,
+                zero_points=zero_point.int(),
+                axis=axis,
+                dtype=torch.qint8
+            )
+
+        # Call parent implementation for other parameters (bias, etc.)
+        super()._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict,
+            missing_keys, unexpected_keys, error_msgs
         )
 
 
