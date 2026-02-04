@@ -28,12 +28,10 @@ The unified layer skipping API (_get_layers_to_skip) combines:
 - Parameter threshold filtering (skip_param_threshold)
 """
 
-from typing import Dict, List, Any, Tuple, Type, Union, Optional
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
-import math
 import torch
 import torch.nn as nn
-
 
 # Default INT4 skip list based on research recommendations
 # See: .planning/phases/03-advanced-calibration-&-int4/03-RESEARCH.md

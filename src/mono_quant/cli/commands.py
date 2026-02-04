@@ -19,7 +19,6 @@ from typing import Optional
 
 import click as _click
 import torch
-import torch.nn as nn
 
 
 # quantize_cmd - Quantize a model to specified precision
@@ -98,8 +97,8 @@ def quantize_cmd(
     """
     from mono_quant.api import quantize
     from mono_quant.api.exceptions import MonoQuantError
-    from mono_quant.io import load_model
     from mono_quant.cli.progress import should_show_progress
+    from mono_quant.io import load_model
 
     verbose = obj.get("verbose", False)
 
@@ -206,7 +205,6 @@ def validate_cmd(model_path: str, strict: bool) -> None:
         monoquant validate quantized_model.pt
     """
     from mono_quant.io import load_model
-    from mono_quant.io.validation import check_weight_ranges, calculate_model_size
 
     _click.echo(f"Validating {model_path}...")
 
@@ -373,7 +371,7 @@ def compare_cmd(original_path: str, quantized_path: str, metrics: tuple) -> None
         monoquant compare model.pt quantized_model.pt
     """
     from mono_quant.io import load_model
-    from mono_quant.io.validation import calculate_model_size, calculate_sqnr
+    from mono_quant.io.validation import calculate_sqnr
 
     _click.echo(f"Comparing {original_path} vs {quantized_path}")
 
@@ -392,7 +390,7 @@ def compare_cmd(original_path: str, quantized_path: str, metrics: tuple) -> None
             quant_params = sum(t.numel() for t in quantized.values())
             ratio = orig_params / quant_params if quant_params > 0 else 0
 
-            _click.echo(f"\nSize Comparison:")
+            _click.echo("\nSize Comparison:")
             _click.echo(f"  Original:  {orig_params:,} parameters")
             _click.echo(f"  Quantized: {quant_params:,} parameters")
             _click.echo(f"  Ratio:     {ratio:.2f}x")

@@ -45,8 +45,8 @@ def _detect_input_format(
             return "state_dict"
         else:
             raise TypeError(
-                f"Input is a dict but doesn't appear to be a state_dict. "
-                f"Expected dict with torch.Tensor values."
+                "Input is a dict but doesn't appear to be a state_dict. "
+                "Expected dict with torch.Tensor values."
             )
     else:
         raise TypeError(

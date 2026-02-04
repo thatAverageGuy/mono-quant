@@ -6,8 +6,7 @@ without requiring scheme class instantiation. They support per-tensor, per-chann
 and group-wise quantization with both symmetric and asymmetric modes.
 """
 
-import math
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 

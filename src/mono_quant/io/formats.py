@@ -38,7 +38,7 @@ import torch
 import torch.nn as nn
 
 try:
-    from safetensors.torch import save_file, safe_open
+    from safetensors.torch import safe_open, save_file
     SAFETENSORS_AVAILABLE = True
 except ImportError:
     SAFETENSORS_AVAILABLE = False
@@ -351,7 +351,7 @@ def save_model(
     # Convert to PyTorch native if requested
     if convert_to_native and isinstance(model, nn.Module):
         # Check if model contains quantized modules
-        from mono_quant.modules.linear import QuantizedLinear, QuantizedConv2d
+        from mono_quant.modules.linear import QuantizedConv2d, QuantizedLinear
         has_quantized = any(isinstance(m, (QuantizedLinear, QuantizedConv2d))
                            for m in model.modules())
 
