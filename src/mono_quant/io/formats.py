@@ -298,6 +298,7 @@ def save_model(
     quantized_size_mb: Optional[float] = None,
     compression_ratio: Optional[float] = None,
     sqnr_db: Optional[float] = None,
+    convert_to_native: bool = True,
 ) -> None:
     """
     Save quantized model with automatic format detection.
@@ -309,6 +310,9 @@ def save_model(
     For Safetensors format, comprehensive quantization metadata is
     automatically included.
 
+    By default, quantized models are converted to PyTorch-native modules
+    before saving, enabling deployment without mono-quant dependency.
+
     Args:
         model: PyTorch model or state_dict to save
         path: Output file path (extension determines format)
@@ -317,6 +321,9 @@ def save_model(
         quantized_size_mb: Quantized model size for metadata
         compression_ratio: Compression ratio for metadata
         sqnr_db: Signal-to-Quantization-Noise Ratio for metadata
+        convert_to_native: If True (default), convert QuantizedLinear/QuantizedConv2d
+                          to PyTorch-native nn.Linear/nn.Conv2d before saving.
+                          This enables loading models without mono-quant installed.
 
     Raises:
         ValueError: If path extension is not supported
@@ -337,7 +344,21 @@ def save_model(
         >>> save_model(model, "quantized.safetensors",
         ...            quantization_info=info,
         ...            compression_ratio=4.0)
+        >>> # Disable auto-conversion (keep mono-quant modules)
+        >>> save_model(model, "quantized.safetensors",
+        ...            convert_to_native=False)
     """
+    # Convert to PyTorch native if requested
+    if convert_to_native and isinstance(model, nn.Module):
+        # Check if model contains quantized modules
+        from mono_quant.modules.linear import QuantizedLinear, QuantizedConv2d
+        has_quantized = any(isinstance(m, (QuantizedLinear, QuantizedConv2d))
+                           for m in model.modules())
+
+        if has_quantized:
+            # Import here to avoid circular dependency
+            from mono_quant.modules import convert_to_pytorch_native
+            model = convert_to_pytorch_native(model)
     if path.endswith(".safetensors"):
         # Build metadata for Safetensors
         metadata = _build_metadata(

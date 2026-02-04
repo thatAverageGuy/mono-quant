@@ -202,6 +202,11 @@ def dynamic_quantize(
     symmetric: bool = False,
     per_channel: bool = True,
     config: Optional["QuantizationConfig"] = None,
+    # Exclusion parameters (matching static_quantize API)
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional["LayerTypes"] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
 ) -> Tuple[nn.Module, List[str]]:
     """
     Dynamically quantize a PyTorch model.
@@ -225,6 +230,14 @@ def dynamic_quantize(
                      If False, use per-tensor scaling.
         config: Optional QuantizationConfig. If provided, its values will
                 override dtype, symmetric, per_channel parameters.
+        modules_to_not_convert: List of exact layer names to exclude from
+                                quantization. This is the primary exclusion
+                                parameter (HuggingFace compatible).
+        skip_layer_types: Optional layer type(s) to exclude from quantization.
+                         Can be a single nn.Module type or a tuple of types.
+        skip_layer_names: Optional list of layer name patterns to exclude.
+        skip_param_threshold: Skip layers with fewer than this many parameters.
+                             Default is 0 (no threshold filtering).
 
     Returns:
         A tuple of (quantized_model, skipped_layers):
@@ -240,12 +253,24 @@ def dynamic_quantize(
         >>> from mono_quant import dynamic_quantize
         >>> model = nn.Sequential(
         ...     nn.Linear(128, 256),
-        ...     nn.ReLU(),
+        ...     nn.LayerNorm(256),
         ...     nn.Linear(256, 10)
         ... )
         >>> q_model, skipped = dynamic_quantize(model, dtype=torch.qint8)
         >>> print(f"Skipped {len(skipped)} layers: {skipped}")
         Skipped 1 layers: ['1']
+
+        Skip specific layer types:
+        >>> q_model, skipped = dynamic_quantize(
+        ...     model, skip_layer_types=(nn.LayerNorm,)
+        ... )
+        >>> assert "1" in skipped  # LayerNorm skipped
+
+        Skip by parameter threshold:
+        >>> q_model, skipped = dynamic_quantize(
+        ...     model, skip_param_threshold=1000
+        ... )
+        >>> # Skips layers with <1000 parameters
 
         FP16 quantization:
         >>> q_model_fp16, skipped = dynamic_quantize(model, dtype=torch.float16)
@@ -259,16 +284,36 @@ def dynamic_quantize(
             symmetric = config.symmetric
         per_channel = config.per_channel
 
-    # FP16 quantization uses simpler flow
+    # FP16 quantization uses simpler flow (exclusion params accepted for API compatibility)
     if dtype == torch.float16:
-        return _quantize_fp16_model(model)
+        return _quantize_fp16_model(
+            model,
+            modules_to_not_convert=modules_to_not_convert,
+            skip_layer_types=skip_layer_types,
+            skip_layer_names=skip_layer_names,
+            skip_param_threshold=skip_param_threshold,
+        )
 
-    # For INT8 quantization, use layer-specific approach
-    return _quantize_int8_model(model, dtype=dtype, symmetric=symmetric, per_channel=per_channel)
+    # For INT8 quantization, use layer-specific approach with exclusion support
+    return _quantize_int8_model(
+        model,
+        dtype=dtype,
+        symmetric=symmetric,
+        per_channel=per_channel,
+        modules_to_not_convert=modules_to_not_convert,
+        skip_layer_types=skip_layer_types,
+        skip_layer_names=skip_layer_names,
+        skip_param_threshold=skip_param_threshold,
+    )
 
 
 def _quantize_fp16_model(
     model: Union[nn.Module, Dict[str, torch.Tensor]],
+    # Exclusion parameters accepted for API consistency (ignored for FP16)
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional["LayerTypes"] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
 ) -> Tuple[nn.Module, List[str]]:
     """
     Quantize a model to FP16 using simple dtype casting.
@@ -277,8 +322,15 @@ def _quantize_fp16_model(
     to float16. No layer type filtering is needed since all layers support
     FP16 weights.
 
+    Note: Exclusion parameters are accepted for API compatibility with
+    dynamic_quantize() but are ignored since FP16 quantizes all parameters.
+
     Args:
         model: Either a PyTorch nn.Module or a state_dict.
+        modules_to_not_convert: Accepted for API compatibility (ignored).
+        skip_layer_types: Accepted for API compatibility (ignored).
+        skip_layer_names: Accepted for API compatibility (ignored).
+        skip_param_threshold: Accepted for API compatibility (ignored).
 
     Returns:
         A tuple of (quantized_model, skipped_layers):
@@ -793,31 +845,51 @@ def _quantize_int8_model(
     dtype: torch.dtype = torch.qint8,
     symmetric: bool = False,
     per_channel: bool = True,
+    # Exclusion parameters
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional["LayerTypes"] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
 ) -> Tuple[nn.Module, List[str]]:
     """
     Quantize a model to INT8 using layer-specific quantization.
 
     This function iterates through the model's modules and quantizes
     supported layer types (nn.Linear, nn.Conv2d). Unsupported layers
-    are skipped and recorded in the returned list.
+    and excluded layers are skipped and recorded in the returned list.
 
     Args:
         model: Either a PyTorch nn.Module or a state_dict.
         dtype: Target quantization dtype (should be torch.qint8).
         symmetric: If True, use symmetric quantization.
         per_channel: If True, use per-channel scaling.
+        modules_to_not_convert: List of exact layer names to exclude.
+        skip_layer_types: Optional layer type(s) to exclude.
+        skip_layer_names: Optional list of layer name patterns to exclude.
+        skip_param_threshold: Skip layers with fewer than this many parameters.
 
     Returns:
         A tuple of (quantized_model, skipped_layers):
         - quantized_model: Model with quantized supported layers
-        - skipped_layers: List of names for unsupported layers
+        - skipped_layers: List of names for unsupported/excluded layers
     """
     # Local imports to avoid circular dependency
     from mono_quant.io.handlers import _prepare_model
     from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
+    from mono_quant.modules.embedding import quantize_embedding_module
+    from mono_quant.core.observers import _get_layers_to_skip
 
     # Get a copy of the model
     model_copy = _prepare_model(model)
+
+    # Build unified skip set using existing utility
+    skip_set = _get_layers_to_skip(
+        model_copy,
+        modules_to_not_convert=modules_to_not_convert,
+        skip_layer_types=skip_layer_types,
+        skip_layer_names=skip_layer_names,
+        skip_param_threshold=skip_param_threshold,
+    )
 
     # Track skipped layers for partial quantization (per CONTEXT.md)
     skipped: List[str] = []
@@ -825,6 +897,11 @@ def _quantize_int8_model(
     # Iterate over named children to get top-level modules
     # We need to handle nested modules properly
     for name, module in list(model_copy.named_children()):
+        # Check if this layer should be skipped
+        if name in skip_set:
+            skipped.append(name)
+            continue
+
         if isinstance(module, nn.Linear):
             # Replace with QuantizedLinear
             q_module = quantize_linear_module(module, dtype=dtype, symmetric=symmetric)
@@ -833,9 +910,17 @@ def _quantize_int8_model(
             # Replace with quantized Conv2d
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             setattr(model_copy, name, q_module)
+        elif isinstance(module, nn.Embedding):  # NEW
+            # Replace with QuantizedEmbedding
+            q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
+            setattr(model_copy, name, q_module)
         elif isinstance(module, nn.Sequential):
             # Handle Sequential containers by processing each layer
-            _quantize_sequential_module(module, skipped, dtype, symmetric)
+            _quantize_sequential_module(
+                module, skipped, dtype, symmetric,
+                skip_set=skip_set,
+                parent_name=name,
+            )
         else:
             # Skip unsupported layers (partial quantization)
             skipped.append(name)
@@ -856,6 +941,11 @@ def _quantize_int8_model(
             # Sequential containers are already processed
             continue
 
+        # Check skip_set for nested layers
+        if name in skip_set:
+            skipped.append(name)
+            continue
+
         if isinstance(module, nn.Linear) and not isinstance(module, type(model_copy.get_submodule(name))):
             # Found an unquantized Linear layer
             q_module = quantize_linear_module(module, dtype=dtype, symmetric=symmetric)
@@ -863,6 +953,11 @@ def _quantize_int8_model(
         elif isinstance(module, nn.Conv2d) and not isinstance(module, type(model_copy.get_submodule(name))):
             # Found an unquantized Conv2d layer
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
+            setattr(parent, child_name, q_module)
+        elif isinstance(module, nn.Embedding) and not isinstance(module, type(model_copy.get_submodule(name))):  # NEW
+            # Found an unquantized Embedding layer
+            from mono_quant.modules.embedding import quantize_embedding_module
+            q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
             setattr(parent, child_name, q_module)
 
     return model_copy, skipped
@@ -873,6 +968,8 @@ def _quantize_sequential_module(
     skipped: List[str],
     dtype: torch.dtype,
     symmetric: bool,
+    skip_set: set = set(),
+    parent_name: str = "",
 ) -> None:
     """
     Quantize layers within a Sequential container in-place.
@@ -882,20 +979,34 @@ def _quantize_sequential_module(
         skipped: List to append skipped layer names to.
         dtype: Target quantization dtype.
         symmetric: Whether to use symmetric quantization.
+        skip_set: Set of layer names to skip.
+        parent_name: Parent module name for full path construction.
     """
     # Local import to avoid circular dependency
     from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
+    from mono_quant.modules.embedding import quantize_embedding_module
 
     for i, module in enumerate(sequential):
+        # Construct full layer name
+        full_name = f"{parent_name}.{i}" if parent_name else str(i)
+
+        # Check if this layer should be skipped
+        if full_name in skip_set:
+            skipped.append(full_name)
+            continue
+
         if isinstance(module, nn.Linear):
             q_module = quantize_linear_module(module, dtype=dtype, symmetric=symmetric)
             sequential[i] = q_module
         elif isinstance(module, nn.Conv2d):
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             sequential[i] = q_module
+        elif isinstance(module, nn.Embedding):  # NEW
+            q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
+            sequential[i] = q_module
         else:
-            # Track skipped layer (using index as name for Sequential)
-            skipped.append(f"sequential.{i}")
+            # Track skipped layer
+            skipped.append(full_name)
 
 
 def test_models_from_any_source() -> None:
@@ -1102,3 +1213,170 @@ def quantize_weight_int4(
     packed = _pack_int4_to_int8(int4_tensor)
 
     return packed, scales, zero_points
+
+
+def revert_to_standard_modules(
+    model: nn.Module,
+    inplace: bool = False,
+) -> nn.Module:
+    """
+    Convert a quantized model back to standard PyTorch modules.
+
+    This function replaces quantized module implementations (QuantizedLinear,
+    QuantizedConv2d, QuantizedEmbedding, QuantizedLinearInt4) with their
+    standard PyTorch equivalents (nn.Linear, nn.Conv2d, nn.Embedding).
+
+    This enables compatibility with:
+    - ONNX export (requires standard modules)
+    - Pruning tools (expect standard module attributes)
+    - Model inspection tools (expect standard nn.Module types)
+    - Frameworks that don't recognize custom quantized modules
+
+    Args:
+        model: Quantized PyTorch model to convert.
+        inplace: If True, modify the model in-place. If False (default),
+                 create a copy and leave the original unchanged.
+
+    Returns:
+        A model with all quantized modules replaced with standard PyTorch modules.
+        All weights are dequantized to FP32.
+
+    Raises:
+        TypeError: If the model contains unsupported quantized module types.
+
+    Examples:
+        >>> import torch.nn as nn
+        >>> from mono_quant import static_quantize, revert_to_standard_modules
+        >>> model = nn.Sequential(nn.Linear(128, 256), nn.ReLU())
+        >>> calibration_data = [torch.randn(32, 128) for _ in range(50)]
+        >>> q_model, _ = static_quantize(model, calibration_data)
+        >>> # Convert back to standard modules
+        >>> std_model = revert_to_standard_modules(q_model)
+        >>> assert isinstance(std_model[0], nn.Linear)  # Not QuantizedLinear
+        >>> assert isinstance(std_model[0].weight, torch.Tensor)
+        >>> assert std_model[0].weight.dtype == torch.float32
+        >>> # Now can export to ONNX
+        >>> torch.onnx.export(std_model, dummy_input, "model.onnx")
+    """
+    # Local imports
+    from mono_quant.io.handlers import _prepare_model
+    from mono_quant.modules.linear import QuantizedLinear, QuantizedLinearInt4, QuantizedConv2d
+    from mono_quant.modules.embedding import QuantizedEmbedding
+
+    # Create copy if not inplace
+    if not inplace:
+        model = _prepare_model(model)
+
+    # Define recursive replacement function
+    def _replace_module_recursive(module: nn.Module, name: str = "", parent: nn.Module = None) -> nn.Module:
+        """Recursively replace quantized modules with standard ones."""
+
+        # Check if this is a quantized module we need to replace
+        if isinstance(module, QuantizedLinear):
+            # Replace QuantizedLinear with nn.Linear
+            new_module = nn.Linear(
+                in_features=module.in_features,
+                out_features=module.out_features,
+                bias=module.bias is not None,
+            )
+
+            # Dequantize and copy weights
+            if module._quantized_weight is not None:
+                from mono_quant.core.quantizers import dequantize_weight
+                weight = dequantize_weight(module._quantized_weight)
+                new_module.weight.data = weight
+
+            # Copy bias if present
+            if module.bias is not None:
+                new_module.bias.data = module.bias.data.clone()
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        elif isinstance(module, QuantizedLinearInt4):
+            # Replace QuantizedLinearInt4 with nn.Linear
+            new_module = nn.Linear(
+                in_features=module.in_features,
+                out_features=module.out_features,
+                bias=module.bias is not None,
+            )
+
+            # Dequantize INT4 weights
+            weight = module._dequantize_weight()
+            new_module.weight.data = weight
+
+            # Copy bias if present
+            if module.bias is not None:
+                new_module.bias.data = module.bias.data.clone()
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        elif isinstance(module, QuantizedConv2d):
+            # Replace QuantizedConv2d with nn.Conv2d
+            new_module = nn.Conv2d(
+                in_channels=module.in_channels,
+                out_channels=module.out_channels,
+                kernel_size=module.kernel_size,
+                stride=module.stride,
+                padding=module.padding,
+                dilation=module.dilation,
+                groups=module.groups,
+                bias=module.bias is not None,
+                padding_mode=module.padding_mode,
+            )
+
+            # Dequantize and copy weights
+            if module._quantized_weight is not None:
+                from mono_quant.core.quantizers import dequantize_weight
+                weight = dequantize_weight(module._quantized_weight)
+                new_module.weight.data = weight
+
+            # Copy bias if present
+            if module.bias is not None:
+                new_module.bias.data = module.bias.data.clone()
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        elif isinstance(module, QuantizedEmbedding):
+            # Replace QuantizedEmbedding with nn.Embedding
+            new_module = nn.Embedding(
+                num_embeddings=module.num_embeddings,
+                embedding_dim=module.embedding_dim,
+                padding_idx=module.padding_idx,
+                max_norm=module.max_norm,
+                norm_type=module.norm_type,
+                scale_grad_by_freq=module.scale_grad_by_freq,
+                sparse=module.sparse,
+            )
+
+            # Dequantize and copy weights
+            if module._quantized_weight is not None:
+                from mono_quant.core.quantizers import dequantize_weight
+                weight = dequantize_weight(module._quantized_weight)
+                new_module.weight.data = weight
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        # Recursively process child modules
+        for child_name, child_module in list(module.named_children()):
+            _replace_module_recursive(child_module, child_name, module)
+
+        return module
+
+    # Start recursive replacement from root
+    return _replace_module_recursive(model)
