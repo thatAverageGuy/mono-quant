@@ -876,6 +876,7 @@ def _quantize_int8_model(
     # Local imports to avoid circular dependency
     from mono_quant.io.handlers import _prepare_model
     from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
+    from mono_quant.modules.embedding import quantize_embedding_module
     from mono_quant.core.observers import _get_layers_to_skip
 
     # Get a copy of the model
@@ -908,6 +909,10 @@ def _quantize_int8_model(
         elif isinstance(module, nn.Conv2d):
             # Replace with quantized Conv2d
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
+            setattr(model_copy, name, q_module)
+        elif isinstance(module, nn.Embedding):  # NEW
+            # Replace with QuantizedEmbedding
+            q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
             setattr(model_copy, name, q_module)
         elif isinstance(module, nn.Sequential):
             # Handle Sequential containers by processing each layer
@@ -949,6 +954,11 @@ def _quantize_int8_model(
             # Found an unquantized Conv2d layer
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             setattr(parent, child_name, q_module)
+        elif isinstance(module, nn.Embedding) and not isinstance(module, type(model_copy.get_submodule(name))):  # NEW
+            # Found an unquantized Embedding layer
+            from mono_quant.modules.embedding import quantize_embedding_module
+            q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
+            setattr(parent, child_name, q_module)
 
     return model_copy, skipped
 
@@ -974,6 +984,7 @@ def _quantize_sequential_module(
     """
     # Local import to avoid circular dependency
     from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
+    from mono_quant.modules.embedding import quantize_embedding_module
 
     for i, module in enumerate(sequential):
         # Construct full layer name
@@ -989,6 +1000,9 @@ def _quantize_sequential_module(
             sequential[i] = q_module
         elif isinstance(module, nn.Conv2d):
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
+            sequential[i] = q_module
+        elif isinstance(module, nn.Embedding):  # NEW
+            q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
             sequential[i] = q_module
         else:
             # Track skipped layer
