@@ -1213,3 +1213,170 @@ def quantize_weight_int4(
     packed = _pack_int4_to_int8(int4_tensor)
 
     return packed, scales, zero_points
+
+
+def revert_to_standard_modules(
+    model: nn.Module,
+    inplace: bool = False,
+) -> nn.Module:
+    """
+    Convert a quantized model back to standard PyTorch modules.
+
+    This function replaces quantized module implementations (QuantizedLinear,
+    QuantizedConv2d, QuantizedEmbedding, QuantizedLinearInt4) with their
+    standard PyTorch equivalents (nn.Linear, nn.Conv2d, nn.Embedding).
+
+    This enables compatibility with:
+    - ONNX export (requires standard modules)
+    - Pruning tools (expect standard module attributes)
+    - Model inspection tools (expect standard nn.Module types)
+    - Frameworks that don't recognize custom quantized modules
+
+    Args:
+        model: Quantized PyTorch model to convert.
+        inplace: If True, modify the model in-place. If False (default),
+                 create a copy and leave the original unchanged.
+
+    Returns:
+        A model with all quantized modules replaced with standard PyTorch modules.
+        All weights are dequantized to FP32.
+
+    Raises:
+        TypeError: If the model contains unsupported quantized module types.
+
+    Examples:
+        >>> import torch.nn as nn
+        >>> from mono_quant import static_quantize, revert_to_standard_modules
+        >>> model = nn.Sequential(nn.Linear(128, 256), nn.ReLU())
+        >>> calibration_data = [torch.randn(32, 128) for _ in range(50)]
+        >>> q_model, _ = static_quantize(model, calibration_data)
+        >>> # Convert back to standard modules
+        >>> std_model = revert_to_standard_modules(q_model)
+        >>> assert isinstance(std_model[0], nn.Linear)  # Not QuantizedLinear
+        >>> assert isinstance(std_model[0].weight, torch.Tensor)
+        >>> assert std_model[0].weight.dtype == torch.float32
+        >>> # Now can export to ONNX
+        >>> torch.onnx.export(std_model, dummy_input, "model.onnx")
+    """
+    # Local imports
+    from mono_quant.io.handlers import _prepare_model
+    from mono_quant.modules.linear import QuantizedLinear, QuantizedLinearInt4, QuantizedConv2d
+    from mono_quant.modules.embedding import QuantizedEmbedding
+
+    # Create copy if not inplace
+    if not inplace:
+        model = _prepare_model(model)
+
+    # Define recursive replacement function
+    def _replace_module_recursive(module: nn.Module, name: str = "", parent: nn.Module = None) -> nn.Module:
+        """Recursively replace quantized modules with standard ones."""
+
+        # Check if this is a quantized module we need to replace
+        if isinstance(module, QuantizedLinear):
+            # Replace QuantizedLinear with nn.Linear
+            new_module = nn.Linear(
+                in_features=module.in_features,
+                out_features=module.out_features,
+                bias=module.bias is not None,
+            )
+
+            # Dequantize and copy weights
+            if module._quantized_weight is not None:
+                from mono_quant.core.quantizers import dequantize_weight
+                weight = dequantize_weight(module._quantized_weight)
+                new_module.weight.data = weight
+
+            # Copy bias if present
+            if module.bias is not None:
+                new_module.bias.data = module.bias.data.clone()
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        elif isinstance(module, QuantizedLinearInt4):
+            # Replace QuantizedLinearInt4 with nn.Linear
+            new_module = nn.Linear(
+                in_features=module.in_features,
+                out_features=module.out_features,
+                bias=module.bias is not None,
+            )
+
+            # Dequantize INT4 weights
+            weight = module._dequantize_weight()
+            new_module.weight.data = weight
+
+            # Copy bias if present
+            if module.bias is not None:
+                new_module.bias.data = module.bias.data.clone()
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        elif isinstance(module, QuantizedConv2d):
+            # Replace QuantizedConv2d with nn.Conv2d
+            new_module = nn.Conv2d(
+                in_channels=module.in_channels,
+                out_channels=module.out_channels,
+                kernel_size=module.kernel_size,
+                stride=module.stride,
+                padding=module.padding,
+                dilation=module.dilation,
+                groups=module.groups,
+                bias=module.bias is not None,
+                padding_mode=module.padding_mode,
+            )
+
+            # Dequantize and copy weights
+            if module._quantized_weight is not None:
+                from mono_quant.core.quantizers import dequantize_weight
+                weight = dequantize_weight(module._quantized_weight)
+                new_module.weight.data = weight
+
+            # Copy bias if present
+            if module.bias is not None:
+                new_module.bias.data = module.bias.data.clone()
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        elif isinstance(module, QuantizedEmbedding):
+            # Replace QuantizedEmbedding with nn.Embedding
+            new_module = nn.Embedding(
+                num_embeddings=module.num_embeddings,
+                embedding_dim=module.embedding_dim,
+                padding_idx=module.padding_idx,
+                max_norm=module.max_norm,
+                norm_type=module.norm_type,
+                scale_grad_by_freq=module.scale_grad_by_freq,
+                sparse=module.sparse,
+            )
+
+            # Dequantize and copy weights
+            if module._quantized_weight is not None:
+                from mono_quant.core.quantizers import dequantize_weight
+                weight = dequantize_weight(module._quantized_weight)
+                new_module.weight.data = weight
+
+            # Replace in parent
+            if parent is not None:
+                setattr(parent, name, new_module)
+
+            return new_module
+
+        # Recursively process child modules
+        for child_name, child_module in list(module.named_children()):
+            _replace_module_recursive(child_module, child_name, module)
+
+        return module
+
+    # Start recursive replacement from root
+    return _replace_module_recursive(model)

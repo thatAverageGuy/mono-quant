@@ -81,7 +81,7 @@ from mono_quant.config import QuantizationConfig
 
 # Quantization functions
 from mono_quant.core import dynamic_quantize
-from mono_quant.core.quantizers import static_quantize
+from mono_quant.core.quantizers import static_quantize, revert_to_standard_modules, dequantize_model
 
 # Model I/O
 from mono_quant.io import save_model, load_model
@@ -99,6 +99,8 @@ __all__ = [
     # Quantization functions
     "dynamic_quantize",
     "static_quantize",
+    "revert_to_standard_modules",
+    "dequantize_model",
     # Model I/O
     "save_model",
     "load_model",

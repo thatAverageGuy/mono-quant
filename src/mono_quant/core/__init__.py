@@ -34,6 +34,7 @@ from mono_quant.core.quantizers import (
     quantize_weight_fp16,
     dequantize_weight,
     dequantize_model,
+    revert_to_standard_modules,
     dynamic_quantize,
     static_quantize,
     QuantizationInfo,
@@ -63,6 +64,7 @@ __all__ = [
     "quantize_weight_fp16",
     "dequantize_weight",
     "dequantize_model",
+    "revert_to_standard_modules",
     # Dynamic quantization
     "dynamic_quantize",
     # Static quantization
