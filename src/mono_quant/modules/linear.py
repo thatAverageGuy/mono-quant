@@ -7,7 +7,7 @@ and dequantizes them during forward pass for inference.
 """
 
 import copy
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -232,25 +232,208 @@ def quantize_linear_module(
     return q_module
 
 
+class QuantizedConv2d(nn.Module):
+    """
+    A Conv2d layer with quantized weights for inference.
+
+    This module wraps quantized weights (typically INT8) and handles
+    dequantization during the forward pass. The weights are quantized
+    once during initialization and cached for efficient inference.
+
+    Args:
+        in_channels: Number of input channels.
+        out_channels: Number of output channels.
+        kernel_size: Size of the convolving kernel.
+        stride: Stride of the convolution.
+        padding: Zero-padding added to both sides of the input.
+        dilation: Spacing between kernel elements.
+        groups: Number of blocked connections from input to output.
+        bias: If True, adds a learnable bias to the output.
+        padding_mode: 'zeros', 'reflect', 'replicate' or 'circular'.
+        dtype: Quantization dtype (torch.qint8 only supported).
+        symmetric: If True, use symmetric quantization (zero_point = 0).
+
+    Attributes:
+        in_channels: Number of input channels.
+        out_channels: Number of output channels.
+        kernel_size: Size of the convolving kernel.
+        _quantized_weight: Cached quantized weight tensor.
+        bias: Optional bias parameter.
+
+    Examples:
+        >>> import torch.nn as nn
+        >>> from mono_quant.modules import QuantizedConv2d
+        >>> conv = QuantizedConv2d(3, 64, kernel_size=3)
+        >>> x = torch.randn(1, 3, 32, 32)
+        >>> y = conv(x)
+        >>> assert y.shape == (1, 64, 30, 30)
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: Union[int, Tuple[int, int]],
+        stride: Union[int, Tuple[int, int]] = 1,
+        padding: Union[int, Tuple[int, int]] = 0,
+        dilation: Union[int, Tuple[int, int]] = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str = 'zeros',
+        dtype: torch.dtype = torch.qint8,
+        symmetric: bool = False,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.groups = groups
+        self.padding_mode = padding_mode
+        self.dtype = dtype
+        self.symmetric = symmetric
+
+        # Store quantized weight (cached after quantization)
+        self._quantized_weight: Optional[torch.Tensor] = None
+
+        # Bias is stored as-is (not quantized)
+        if bias:
+            self.bias = nn.Parameter(torch.zeros(out_channels))
+        else:
+            self.register_parameter("bias", None)
+
+        # Placeholder for the original weight shape
+        # Shape: (out_channels, in_channels, kernel_h, kernel_w)
+        if isinstance(kernel_size, int):
+            kernel_h = kernel_w = kernel_size
+        else:
+            kernel_h, kernel_w = kernel_size
+
+        self._weight_shape = (
+            out_channels,
+            in_channels // groups,
+            kernel_h,
+            kernel_w
+        )
+
+    @classmethod
+    def from_conv2d(
+        cls,
+        module: nn.Conv2d,
+        symmetric: bool = False,
+    ) -> "QuantizedConv2d":
+        """
+        Create a QuantizedConv2d from an existing nn.Conv2d module.
+
+        This factory method quantizes the weights from the source Conv2d
+        module and creates a new QuantizedConv2d instance.
+
+        Args:
+            module: Source nn.Conv2d module to quantize.
+            symmetric: If True, use symmetric quantization. Default is False.
+
+        Returns:
+            A new QuantizedConv2d instance with quantized weights.
+
+        Examples:
+            >>> import torch.nn as nn
+            >>> from mono_quant.modules import QuantizedConv2d
+            >>> conv = nn.Conv2d(3, 64, kernel_size=3)
+            >>> q_conv = QuantizedConv2d.from_conv2d(conv, symmetric=False)
+        """
+        # Create new QuantizedConv2d with same configuration
+        q_conv = cls(
+            in_channels=module.in_channels,
+            out_channels=module.out_channels,
+            kernel_size=module.kernel_size,
+            stride=module.stride,
+            padding=module.padding,
+            dilation=module.dilation,
+            groups=module.groups,
+            bias=module.bias is not None,
+            padding_mode=module.padding_mode,
+            symmetric=symmetric,
+        )
+
+        # Quantize the weight using per-channel quantization (axis=0 for output channels)
+        q_conv._quantized_weight = quantize_weight_int8(
+            module.weight.data, symmetric=symmetric, axis=0
+        )
+
+        # Copy bias if present
+        if module.bias is not None:
+            q_conv.bias.data = module.bias.data.clone()
+
+        return q_conv
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass with dequantized weights.
+
+        Args:
+            input: Input tensor of shape (N, C_in, H, W).
+
+        Returns:
+            Output tensor of shape (N, C_out, H_out, W_out).
+        """
+        # Lazy quantization check
+        if self._quantized_weight is None:
+            raise RuntimeError(
+                "QuantizedConv2d has no quantized weights. "
+                "Use from_conv2d() or set _quantized_weight directly."
+            )
+
+        # Dequantize weight for computation
+        weight = dequantize_weight(self._quantized_weight)
+
+        # Compute convolution
+        output = F.conv2d(
+            input, weight, self.bias, self.stride,
+            self.padding, self.dilation, self.groups
+        )
+
+        return output
+
+    @property
+    def weight(self) -> Optional[torch.Tensor]:
+        """
+        Return the dequantized weight (for compatibility).
+
+        This property provides compatibility with code that expects
+        a weight attribute on Conv2d modules.
+
+        Returns:
+            Dequantized weight tensor, or None if not quantized yet.
+        """
+        if self._quantized_weight is None:
+            return None
+        return dequantize_weight(self._quantized_weight)
+
+    def extra_repr(self) -> str:
+        """Return extra representation string."""
+        return (
+            f"in_channels={self.in_channels}, "
+            f"out_channels={self.out_channels}, "
+            f"kernel_size={self.kernel_size}, "
+            f"dtype={self.dtype}, "
+            f"symmetric={self.symmetric}, "
+            f"bias={self.bias is not None}"
+        )
+
+
 def quantize_conv2d_module(
     module: nn.Conv2d,
     dtype: torch.dtype = torch.qint8,
     symmetric: bool = False,
-) -> nn.Conv2d:
+) -> QuantizedConv2d:
     """
     Quantize an nn.Conv2d module's weights using per-channel quantization.
 
-    This function creates a new nn.Conv2d module with quantized weights.
+    This function creates a QuantizedConv2d module with INT8 quantized weights.
     The weights are quantized per output channel (axis=0), which is the
     standard approach for Conv2d layers. Bias is preserved but not quantized.
-
-    Note: This returns a standard nn.Conv2d with dequantized float32 weights.
-    The weights are quantized and immediately dequantized, so the module
-    uses float32 weights during inference. This is a simple approach that
-    doesn't require custom Conv2d implementations.
-
-    For true quantized inference, consider using PyTorch's optimized
-    quantized Conv2d variants in future phases.
 
     Args:
         module: Source nn.Conv2d module to quantize.
@@ -259,7 +442,7 @@ def quantize_conv2d_module(
                    If False, use asymmetric quantization. Default is False.
 
     Returns:
-        A new nn.Conv2d instance with quantized (then dequantized) weights.
+        A new QuantizedConv2d instance with INT8 quantized weights.
 
     Raises:
         TypeError: If module is not an nn.Conv2d instance.
@@ -269,7 +452,8 @@ def quantize_conv2d_module(
         >>> from mono_quant.modules import quantize_conv2d_module
         >>> conv = nn.Conv2d(3, 64, kernel_size=3)
         >>> q_conv = quantize_conv2d_module(conv, symmetric=False)
-        >>> assert isinstance(q_conv, nn.Conv2d)
+        >>> assert isinstance(q_conv, QuantizedConv2d)
+        >>> assert q_conv._quantized_weight.dtype == torch.qint8
     """
     if not isinstance(module, nn.Conv2d):
         raise TypeError(
@@ -277,38 +461,8 @@ def quantize_conv2d_module(
             f"quantize_conv2d_module only supports nn.Conv2d layers."
         )
 
-    # Quantize the weight using per-channel quantization
-    # For Conv2d, axis=0 corresponds to output channels
-    # Shape: (out_channels, in_channels, kernel_h, kernel_w)
-    q_weight = quantize_weight_int8(
-        module.weight.data, symmetric=symmetric, axis=0
-    )
-
-    # Dequantize back to float32 for standard nn.Conv2d
-    # In future phases, can use quantized Conv2d for true int8 inference
-    weight_dequant = dequantize_weight(q_weight)
-
-    # Create new Conv2d with same parameters
-    q_module = nn.Conv2d(
-        in_channels=module.in_channels,
-        out_channels=module.out_channels,
-        kernel_size=module.kernel_size,
-        stride=module.stride,
-        padding=module.padding,
-        dilation=module.dilation,
-        groups=module.groups,
-        bias=module.bias is not None,
-        padding_mode=module.padding_mode,
-    )
-
-    # Copy quantized (dequantized) weights
-    q_module.weight.data = weight_dequant
-
-    # Copy bias if present (bias is not quantized)
-    if module.bias is not None:
-        q_module.bias.data = module.bias.data.clone()
-
-    return q_module
+    # Use the factory method to create QuantizedConv2d
+    return QuantizedConv2d.from_conv2d(module, symmetric=symmetric)
 
 
 class QuantizedLinearInt4(nn.Module):
