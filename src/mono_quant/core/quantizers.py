@@ -202,6 +202,11 @@ def dynamic_quantize(
     symmetric: bool = False,
     per_channel: bool = True,
     config: Optional["QuantizationConfig"] = None,
+    # Exclusion parameters (matching static_quantize API)
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional["LayerTypes"] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
 ) -> Tuple[nn.Module, List[str]]:
     """
     Dynamically quantize a PyTorch model.
@@ -225,6 +230,14 @@ def dynamic_quantize(
                      If False, use per-tensor scaling.
         config: Optional QuantizationConfig. If provided, its values will
                 override dtype, symmetric, per_channel parameters.
+        modules_to_not_convert: List of exact layer names to exclude from
+                                quantization. This is the primary exclusion
+                                parameter (HuggingFace compatible).
+        skip_layer_types: Optional layer type(s) to exclude from quantization.
+                         Can be a single nn.Module type or a tuple of types.
+        skip_layer_names: Optional list of layer name patterns to exclude.
+        skip_param_threshold: Skip layers with fewer than this many parameters.
+                             Default is 0 (no threshold filtering).
 
     Returns:
         A tuple of (quantized_model, skipped_layers):
@@ -240,12 +253,24 @@ def dynamic_quantize(
         >>> from mono_quant import dynamic_quantize
         >>> model = nn.Sequential(
         ...     nn.Linear(128, 256),
-        ...     nn.ReLU(),
+        ...     nn.LayerNorm(256),
         ...     nn.Linear(256, 10)
         ... )
         >>> q_model, skipped = dynamic_quantize(model, dtype=torch.qint8)
         >>> print(f"Skipped {len(skipped)} layers: {skipped}")
         Skipped 1 layers: ['1']
+
+        Skip specific layer types:
+        >>> q_model, skipped = dynamic_quantize(
+        ...     model, skip_layer_types=(nn.LayerNorm,)
+        ... )
+        >>> assert "1" in skipped  # LayerNorm skipped
+
+        Skip by parameter threshold:
+        >>> q_model, skipped = dynamic_quantize(
+        ...     model, skip_param_threshold=1000
+        ... )
+        >>> # Skips layers with <1000 parameters
 
         FP16 quantization:
         >>> q_model_fp16, skipped = dynamic_quantize(model, dtype=torch.float16)
@@ -259,16 +284,36 @@ def dynamic_quantize(
             symmetric = config.symmetric
         per_channel = config.per_channel
 
-    # FP16 quantization uses simpler flow
+    # FP16 quantization uses simpler flow (exclusion params accepted for API compatibility)
     if dtype == torch.float16:
-        return _quantize_fp16_model(model)
+        return _quantize_fp16_model(
+            model,
+            modules_to_not_convert=modules_to_not_convert,
+            skip_layer_types=skip_layer_types,
+            skip_layer_names=skip_layer_names,
+            skip_param_threshold=skip_param_threshold,
+        )
 
-    # For INT8 quantization, use layer-specific approach
-    return _quantize_int8_model(model, dtype=dtype, symmetric=symmetric, per_channel=per_channel)
+    # For INT8 quantization, use layer-specific approach with exclusion support
+    return _quantize_int8_model(
+        model,
+        dtype=dtype,
+        symmetric=symmetric,
+        per_channel=per_channel,
+        modules_to_not_convert=modules_to_not_convert,
+        skip_layer_types=skip_layer_types,
+        skip_layer_names=skip_layer_names,
+        skip_param_threshold=skip_param_threshold,
+    )
 
 
 def _quantize_fp16_model(
     model: Union[nn.Module, Dict[str, torch.Tensor]],
+    # Exclusion parameters accepted for API consistency (ignored for FP16)
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional["LayerTypes"] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
 ) -> Tuple[nn.Module, List[str]]:
     """
     Quantize a model to FP16 using simple dtype casting.
@@ -277,8 +322,15 @@ def _quantize_fp16_model(
     to float16. No layer type filtering is needed since all layers support
     FP16 weights.
 
+    Note: Exclusion parameters are accepted for API compatibility with
+    dynamic_quantize() but are ignored since FP16 quantizes all parameters.
+
     Args:
         model: Either a PyTorch nn.Module or a state_dict.
+        modules_to_not_convert: Accepted for API compatibility (ignored).
+        skip_layer_types: Accepted for API compatibility (ignored).
+        skip_layer_names: Accepted for API compatibility (ignored).
+        skip_param_threshold: Accepted for API compatibility (ignored).
 
     Returns:
         A tuple of (quantized_model, skipped_layers):
@@ -793,31 +845,50 @@ def _quantize_int8_model(
     dtype: torch.dtype = torch.qint8,
     symmetric: bool = False,
     per_channel: bool = True,
+    # Exclusion parameters
+    modules_to_not_convert: Optional[List[str]] = None,
+    skip_layer_types: Optional["LayerTypes"] = None,
+    skip_layer_names: Optional[List[str]] = None,
+    skip_param_threshold: int = 0,
 ) -> Tuple[nn.Module, List[str]]:
     """
     Quantize a model to INT8 using layer-specific quantization.
 
     This function iterates through the model's modules and quantizes
     supported layer types (nn.Linear, nn.Conv2d). Unsupported layers
-    are skipped and recorded in the returned list.
+    and excluded layers are skipped and recorded in the returned list.
 
     Args:
         model: Either a PyTorch nn.Module or a state_dict.
         dtype: Target quantization dtype (should be torch.qint8).
         symmetric: If True, use symmetric quantization.
         per_channel: If True, use per-channel scaling.
+        modules_to_not_convert: List of exact layer names to exclude.
+        skip_layer_types: Optional layer type(s) to exclude.
+        skip_layer_names: Optional list of layer name patterns to exclude.
+        skip_param_threshold: Skip layers with fewer than this many parameters.
 
     Returns:
         A tuple of (quantized_model, skipped_layers):
         - quantized_model: Model with quantized supported layers
-        - skipped_layers: List of names for unsupported layers
+        - skipped_layers: List of names for unsupported/excluded layers
     """
     # Local imports to avoid circular dependency
     from mono_quant.io.handlers import _prepare_model
     from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
+    from mono_quant.core.observers import _get_layers_to_skip
 
     # Get a copy of the model
     model_copy = _prepare_model(model)
+
+    # Build unified skip set using existing utility
+    skip_set = _get_layers_to_skip(
+        model_copy,
+        modules_to_not_convert=modules_to_not_convert,
+        skip_layer_types=skip_layer_types,
+        skip_layer_names=skip_layer_names,
+        skip_param_threshold=skip_param_threshold,
+    )
 
     # Track skipped layers for partial quantization (per CONTEXT.md)
     skipped: List[str] = []
@@ -825,6 +896,11 @@ def _quantize_int8_model(
     # Iterate over named children to get top-level modules
     # We need to handle nested modules properly
     for name, module in list(model_copy.named_children()):
+        # Check if this layer should be skipped
+        if name in skip_set:
+            skipped.append(name)
+            continue
+
         if isinstance(module, nn.Linear):
             # Replace with QuantizedLinear
             q_module = quantize_linear_module(module, dtype=dtype, symmetric=symmetric)
@@ -835,7 +911,11 @@ def _quantize_int8_model(
             setattr(model_copy, name, q_module)
         elif isinstance(module, nn.Sequential):
             # Handle Sequential containers by processing each layer
-            _quantize_sequential_module(module, skipped, dtype, symmetric)
+            _quantize_sequential_module(
+                module, skipped, dtype, symmetric,
+                skip_set=skip_set,
+                parent_name=name,
+            )
         else:
             # Skip unsupported layers (partial quantization)
             skipped.append(name)
@@ -856,6 +936,11 @@ def _quantize_int8_model(
             # Sequential containers are already processed
             continue
 
+        # Check skip_set for nested layers
+        if name in skip_set:
+            skipped.append(name)
+            continue
+
         if isinstance(module, nn.Linear) and not isinstance(module, type(model_copy.get_submodule(name))):
             # Found an unquantized Linear layer
             q_module = quantize_linear_module(module, dtype=dtype, symmetric=symmetric)
@@ -873,6 +958,8 @@ def _quantize_sequential_module(
     skipped: List[str],
     dtype: torch.dtype,
     symmetric: bool,
+    skip_set: set = set(),
+    parent_name: str = "",
 ) -> None:
     """
     Quantize layers within a Sequential container in-place.
@@ -882,11 +969,21 @@ def _quantize_sequential_module(
         skipped: List to append skipped layer names to.
         dtype: Target quantization dtype.
         symmetric: Whether to use symmetric quantization.
+        skip_set: Set of layer names to skip.
+        parent_name: Parent module name for full path construction.
     """
     # Local import to avoid circular dependency
     from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
 
     for i, module in enumerate(sequential):
+        # Construct full layer name
+        full_name = f"{parent_name}.{i}" if parent_name else str(i)
+
+        # Check if this layer should be skipped
+        if full_name in skip_set:
+            skipped.append(full_name)
+            continue
+
         if isinstance(module, nn.Linear):
             q_module = quantize_linear_module(module, dtype=dtype, symmetric=symmetric)
             sequential[i] = q_module
@@ -894,8 +991,8 @@ def _quantize_sequential_module(
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             sequential[i] = q_module
         else:
-            # Track skipped layer (using index as name for Sequential)
-            skipped.append(f"sequential.{i}")
+            # Track skipped layer
+            skipped.append(full_name)
 
 
 def test_models_from_any_source() -> None:
