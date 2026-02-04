@@ -44,7 +44,7 @@ Simplify quantization workflows through two interfaces — a Python function API
 - **Validation timing**: Two-stage validation — quick upfront validation of obvious issues, deep validation during quantization
 - **Error messages**: Both technical error + actionable suggestion (e.g., "group_size=128 too large for layer with 64 channels. Use --group-size 64 or smaller.")
 
-### Claude's Discretion
+### thatAverageGuy's Discretion
 **Python API:**
 - Exact function signature and parameter names
 - Whether to use `*args`/`**kwargs` or explicit parameters

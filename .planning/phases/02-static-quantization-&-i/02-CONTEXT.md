@@ -11,8 +11,8 @@ Users can apply static quantization using calibration data and save/load quantiz
 
 ### Calibration data interface
 - **Input formats:** Support both tensors (List[torch.Tensor]) and DataLoader for flexibility
-- **Sample count:** Claude's discretion — determine best approach for typical ML workflows
-- **Forward passes:** Claude's discretion — determine based on calibration accuracy needs
+- **Sample count:** thatAverageGuy's discretion — determine best approach for typical ML workflows
+- **Forward passes:** thatAverageGuy's discretion — determine based on calibration accuracy needs
 - **Progress reporting:** Auto-show progress for large datasets (auto-detect "large")
 
 ### Layer selection approach
@@ -22,7 +22,7 @@ Users can apply static quantization using calibration data and save/load quantiz
 - **Selection method:** Support both auto-detect by type AND manual name selection
   - Auto-detect from model layers (user provides module types, we find instances)
   - User provides exact layer names (e.g., 'model.encoder.0.weight')
-- **Skipped layer reporting:** Claude's discretion — determine best approach
+- **Skipped layer reporting:** thatAverageGuy's discretion — determine best approach
 
 ### Safetensors metadata
 - **Metadata to store:** All four categories
@@ -47,7 +47,7 @@ Users can apply static quantization using calibration data and save/load quantiz
   - `on_failure='warn'` — warning + return model anyway
   - `on_failure='ignore'` — silent, return model
 
-### Claude's Discretion
+### thatAverageGuy's Discretion
 - Calibration sample count — determine based on typical ML workflow needs
 - Calibration forward passes — single vs multiple based on accuracy requirements
 - Skipped layer reporting — how users are informed about skipped layers

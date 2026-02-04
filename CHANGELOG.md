@@ -163,7 +163,6 @@ None.
 
 ### Contributors
 
-- Claude Sonnet 4.5 (AI Assistant)
 - thatAverageGuy (Project Maintainer)
 
 ---

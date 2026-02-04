@@ -31,9 +31,9 @@ Users can quantize any PyTorch model to INT8 or FP16 using dynamic quantization.
 - Highly modular — schemes, mappers, quantizers as separate modules with clear boundaries
 - Plugin architecture for extensibility — users can add custom schemes/observers in future phases
 - Observers fully separate from quantization logic (even though Phase 1 is dynamic-only)
-- Internal API granularity is at Claude's discretion
+- Internal API granularity is at thatAverageGuy's discretion
 
-### Claude's Discretion
+### thatAverageGuy's Discretion
 - FP16 quantization approach (simple cast vs full quantization pipeline)
 - Internal API granularity — choose what best fits the architecture
 - Exact component boundaries within the modular structure

@@ -37,7 +37,7 @@ key-files:
 key-decisions:
   - "Custom MinMaxObserver implementation avoids deprecated torch.ao.quantization.MinMaxObserver (removal in PyTorch 2.10+)"
   - "150 sample default aligns with research recommendation (100-200 baseline per RESEARCH.md)"
-  - "Progress bar threshold at 50 samples for auto-detection (Claude's discretion per CONTEXT.md)"
+  - "Progress bar threshold at 50 samples for auto-detection (thatAverageGuy's discretion per CONTEXT.md)"
   - "DataLoader (input, target) pattern handled by extracting batch[0]"
 
 patterns-established:
@@ -90,7 +90,7 @@ Each task was committed atomically:
 
 - Custom MinMaxObserver implementation instead of torch.ao.quantization.MinMaxObserver to avoid deprecated API (removal in PyTorch 2.10+)
 - 150 sample default for run_calibration() aligns with RESEARCH.md recommendation (100-200 baseline for static quantization)
-- Progress bar auto-detection threshold at 50 samples (Claude's discretion per CONTEXT.md)
+- Progress bar auto-detection threshold at 50 samples (thatAverageGuy's discretion per CONTEXT.md)
 - DataLoader (input, target) batching pattern handled by extracting batch[0] for supervised learning use case
 - Optional tqdm dependency with graceful ImportError fallback to silent iteration
 

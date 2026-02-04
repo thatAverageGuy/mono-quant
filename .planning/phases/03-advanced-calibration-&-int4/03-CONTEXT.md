@@ -23,7 +23,7 @@ Extend quantization capabilities with INT4 support using group-wise scaling, adv
 ### INT4 Group-Wise Scaling
 - **Group size**: Configurable parameter with default of 128 channels (industry standard balance)
 - **Axis configuration**: Configurable with default axis=0 (consistent with existing per-channel convention)
-- **Small layer handling**: Claude's discretion - choose safest approach for layers smaller than group size
+- **Small layer handling**: thatAverageGuy's discretion - choose safest approach for layers smaller than group size
 - **API design**: Add `group_size` parameter to quantization functions, user can tune tradeoff
 
 ### Layer Skipping Behavior
@@ -32,7 +32,7 @@ Extend quantization capabilities with INT4 support using group-wise scaling, adv
   - Normalization layers (LayerNorm, BatchNorm - can cause instability)
   - Layers < 512 parameters (overhead outweighs compression benefit)
 - **User configurability**: All defaults are user-configurable and overridable
-- **Skip mechanism API**: Claude's discretion - choose most intuitive interface (type-based, name-based, or unified)
+- **Skip mechanism API**: thatAverageGuy's discretion - choose most intuitive interface (type-based, name-based, or unified)
 - **Default behavior**: Skipped layers remain in original precision (FP32/FP16)
 - **Advanced option**: Users can specify target precision for skipped layers (e.g., INT8 fallback instead of full skip)
 
@@ -41,20 +41,20 @@ Extend quantization capabilities with INT4 support using group-wise scaling, adv
 - **Advanced observers**: MovingAverageMinMax and Histogram available as opt-in
 - **Documentation**: Describe scenarios where each observer type is helpful
 - **Auto-selection strategy**: Experimental feature with smart selection based on data characteristics
-  - Claude's discretion on criteria (dataset size, distribution analysis, outliers)
+  - thatAverageGuy's discretion on criteria (dataset size, distribution analysis, outliers)
   - Must be clearly marked as experimental if not fool-proof
   - If auto-selection proves unreliable, keep as experimental with user opt-in
 
 ### Accuracy Warning System
-- **Metrics**: Claude's discretion - choose best accuracy preservation indicators
+- **Metrics**: thatAverageGuy's discretion - choose best accuracy preservation indicators
   - Default metrics should be well-documented
   - User-configurable threshold options with detailed explanations
-- **Threshold philosophy**: Claude's discretion - set sensible defaults
-- **Warning behavior**: Claude's discretion - choose most practical approach for CI/CD workflows
+- **Threshold philosophy**: thatAverageGuy's discretion - set sensible defaults
+- **Warning behavior**: thatAverageGuy's discretion - choose most practical approach for CI/CD workflows
   - Consider log-only vs. configurable (error/warn/ignore) vs. interactive
   - Must not break automated pipelines
 
-### Claude's Discretion
+### thatAverageGuy's Discretion
 **Layer skipping API:**
 - Type-based (`skip_layer_types=['Embedding']`)
 - Name-based (`skip_layer_names=['lm_head']`)

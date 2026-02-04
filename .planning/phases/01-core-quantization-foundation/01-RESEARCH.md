@@ -596,7 +596,7 @@ def asymmetric_quantize(
 **What we know:**
 - Simple dtype casting (`to(float16)`) works and reduces memory
 - PyTorch's `quantize_dynamic` with FP16 doesn't reduce model size (per forum discussion)
-- CONTEXT.md lists FP16 approach as "Claude's Discretion"
+- CONTEXT.md lists FP16 approach as "thatAverageGuy's Discretion"
 
 **What's unclear:**
 - Whether full quantization pipeline (with observers) provides any benefit for FP16
