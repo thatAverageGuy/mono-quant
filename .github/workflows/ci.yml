@@ -44,7 +44,7 @@ jobs:
 
       - name: Type check with mypy
         run: |
-          mypy src/ || echo "Type check issues found"
+          mypy src/ || true
 
   build:
     name: Build package
