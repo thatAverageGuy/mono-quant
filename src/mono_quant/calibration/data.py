@@ -12,7 +12,6 @@ from typing import List, Union
 import torch
 from torch.utils.data import DataLoader
 
-
 # Type alias for calibration data inputs
 CalibrationData = Union[List[torch.Tensor], DataLoader]
 

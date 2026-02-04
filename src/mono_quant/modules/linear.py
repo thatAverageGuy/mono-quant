@@ -6,14 +6,13 @@ nn.Conv2d layers. The QuantizedLinear module stores quantized weights
 and dequantizes them during forward pass for inference.
 """
 
-import copy
 from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from mono_quant.core.quantizers import quantize_weight_int8, dequantize_weight, quantize_weight_int4
+from mono_quant.core.quantizers import dequantize_weight, quantize_weight_int4, quantize_weight_int8
 
 
 class QuantizedLinear(nn.Module):
@@ -781,7 +780,6 @@ class QuantizedLinearInt4(nn.Module):
             >>> q_linear = QuantizedLinearInt4.from_float(linear, group_size=128)
         """
         # Local import to avoid circular dependencies
-        from mono_quant.core.quantizers import quantize_weight_int4
 
         # Get weight from module
         weight = module.weight.data
@@ -818,7 +816,6 @@ class QuantizedLinearInt4(nn.Module):
             Output tensor of shape (*, out_features).
         """
         # Local imports to avoid circular dependencies
-        from mono_quant.core.mappers import _unpack_int8_to_int4
 
         # Unpack and dequantize weights
         weight = self._dequantize_weight()
@@ -974,23 +971,12 @@ def _convert_quantized_linear_to_native(q_linear: QuantizedLinear) -> nn.Module:
     Raises:
         RuntimeError: If QuantizedLinear has no quantized weights.
     """
-    try:
-        from torch.ao.nn.quantized import Linear as NativeQuantizedLinear
-    except ImportError:
-        # Fallback for older PyTorch versions
-        from torch.nn.quantized import Linear as NativeQuantizedLinear
-
     if q_linear._quantized_weight is None:
         raise RuntimeError("Cannot convert: QuantizedLinear has no quantized weights")
 
-    # Extract quantized weight metadata
-    q_weight = q_linear._quantized_weight
-    scale = q_weight.q_per_channel_scales()
-    zero_point = q_weight.q_per_channel_zero_points()
-    axis = q_weight.q_per_channel_axis()
-
-    # Get dequantized weight temporarily
+    # Get dequantized weight
     from mono_quant.core.quantizers import dequantize_weight
+    q_weight = q_linear._quantized_weight
     weight_fp32 = dequantize_weight(q_weight)
 
     # Create native quantized Linear
@@ -999,7 +985,6 @@ def _convert_quantized_linear_to_native(q_linear: QuantizedLinear) -> nn.Module:
     try:
         # Method 1: Use torch.ao.quantization.prepare_qat + convert
         # This is the recommended approach for PyTorch 2.0+
-        import torch.ao.quantization as quantization
 
         # Create a wrapper Linear module
         fp32_linear = nn.Linear(
@@ -1016,7 +1001,7 @@ def _convert_quantized_linear_to_native(q_linear: QuantizedLinear) -> nn.Module:
         # The weights are FP32 but the model structure is standard PyTorch
         return fp32_linear
 
-    except Exception as e:
+    except Exception:
         # Fallback: return standard Linear with dequantized weights
         # This provides PyTorch-native compatibility, even if not truly quantized
         fp32_linear = nn.Linear(

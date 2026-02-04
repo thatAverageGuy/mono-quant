@@ -25,10 +25,13 @@ Example:
 import os
 import tempfile
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+
+if TYPE_CHECKING:
+    from mono_quant.core.quantizers import QuantizationInfo
 
 
 @dataclass
@@ -273,7 +276,7 @@ def _test_load_run(quantized: nn.Module) -> bool:
         True if all steps succeed, False if any step fails.
     """
     # Local import to avoid circular dependency
-    from .formats import save_model, load_model
+    from .formats import load_model, save_model
 
     # Create a temporary file for testing
     with tempfile.NamedTemporaryFile(suffix=".safetensors", delete=False) as f:

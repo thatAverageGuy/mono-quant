@@ -18,6 +18,8 @@ from typing import Dict, List, Optional, Union
 import torch
 import torch.nn as nn
 
+from .result import QuantizationResult
+
 # Type alias for calibration data (re-exported from core)
 CalibrationData = Union[List[torch.Tensor], "torch.utils.data.DataLoader"]
 
@@ -30,7 +32,7 @@ def quantize(
     calibration_data: Optional[CalibrationData] = None,
     show_progress: bool = False,
     **kwargs,
-) -> "QuantizationResult":
+) -> QuantizationResult:
     """
     Quantize a PyTorch model using a unified API.
 
@@ -126,9 +128,9 @@ def quantize(
         dynamic_quantize,
         static_quantize,
     )
-    from mono_quant.io.handlers import _prepare_model
     from mono_quant.io import load_model
-    from .result import QuantizationResult
+    from mono_quant.io.handlers import _prepare_model
+
     from .exceptions import ConfigurationError, InputError
 
     # Step 1: Input normalization

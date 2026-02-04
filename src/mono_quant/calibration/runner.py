@@ -15,14 +15,20 @@ The observer factory enables easy instantiation of observers by string name:
 - auto: Experimental auto-selection based on provided kwargs
 """
 
-from typing import Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 
 from mono_quant.core.observers import MinMaxObserver
-from .data import _normalize_calibration_data, _limit_samples, CalibrationData
+
+from .data import CalibrationData, _limit_samples, _normalize_calibration_data
+
+if TYPE_CHECKING:
+    from mono_quant.core.observers import (
+        HistogramObserver,
+        MovingAverageMinMaxObserver,
+    )
 
 
 def create_observer(
@@ -74,9 +80,9 @@ def create_observer(
 
     # Local import to avoid circular dependency
     from mono_quant.core.observers import (
+        HistogramObserver,
         MinMaxObserver,
         MovingAverageMinMaxObserver,
-        HistogramObserver,
     )
 
     # Match against observer types
@@ -125,9 +131,9 @@ def _auto_select_observer(
     """
     # Local import to avoid circular dependency
     from mono_quant.core.observers import (
+        HistogramObserver,
         MinMaxObserver,
         MovingAverageMinMaxObserver,
-        HistogramObserver,
     )
 
     # Simple heuristics based on kwargs

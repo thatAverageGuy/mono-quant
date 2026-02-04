@@ -32,6 +32,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch numpy safetensors tqdm click
           pip install pytest ruff mypy
+          pip install -e .
 
       - name: Run tests
         run: |
@@ -43,7 +44,7 @@ jobs:
 
       - name: Type check with mypy
         run: |
-          mypy src/ || echo "Type check issues found"
+          mypy src/ || true
 
   build:
     name: Build package

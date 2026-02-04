@@ -62,7 +62,12 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
-ignore = ["E501"]
+ignore = [
+    "E501",  # Line too long
+    "N803",  # Argument name should be lowercase (allow P, Q for probability distributions)
+    "N806",  # Variable in function should be lowercase (allow P, Q for probability distributions)
+    "N812",  # Lowercase `functional` imported as non-lowercase `F` (standard PyTorch convention)
+]
 
 [tool.mypy]
 python_version = "3.11"

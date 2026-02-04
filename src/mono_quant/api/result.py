@@ -13,10 +13,13 @@ Example:
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
-import torch
 import torch.nn as nn
+
+if TYPE_CHECKING:
+    from mono_quant.core.quantizers import QuantizationInfo
+    from mono_quant.io.validation import ValidationResult
 
 
 @dataclass

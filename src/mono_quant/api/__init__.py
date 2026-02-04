@@ -59,19 +59,18 @@ Error handling with suggestions:
 """
 
 # Quantization function
+# Exceptions
+from .exceptions import (
+    ConfigurationError,
+    InputError,
+    MonoQuantError,
+    QuantizationError,
+    ValidationError,
+)
 from .quantize import quantize
 
 # Result types
 from .result import QuantizationResult
-
-# Exceptions
-from .exceptions import (
-    MonoQuantError,
-    QuantizationError,
-    ValidationError,
-    ConfigurationError,
-    InputError,
-)
 
 __all__ = [
     # Quantization

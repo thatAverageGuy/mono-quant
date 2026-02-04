@@ -7,7 +7,7 @@ converting floating-point weights to quantized representations (INT4, INT8, FP16
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -15,6 +15,9 @@ import torch.nn as nn
 from mono_quant.core.mappers import calculate_scale_zp_per_channel
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from mono_quant.config import QuantizationConfig
 
 
 # Type alias for layer types used in selection (re-exported from observers)
@@ -282,7 +285,6 @@ def dynamic_quantize(
         dtype = config.dtype
         if config.symmetric is not None:
             symmetric = config.symmetric
-        per_channel = config.per_channel
 
     # FP16 quantization uses simpler flow (exclusion params accepted for API compatibility)
     if dtype == torch.float16:
@@ -479,25 +481,24 @@ def static_quantize(
         ... )
     """
     # Local imports to avoid circular dependencies
-    from mono_quant.io.handlers import _prepare_model
-    from mono_quant.calibration.runner import run_calibration
     from mono_quant.calibration.data import _normalize_calibration_data
+    from mono_quant.calibration.runner import run_calibration
     from mono_quant.core.observers import (
-        MinMaxObserver,
-        _select_layers_by_type,
-        _select_layers_by_name,
-        _merge_selection_results,
-        _get_layers_to_skip,
         DEFAULT_INT4_SKIP,
+        MinMaxObserver,
+        _get_layers_to_skip,
+        _merge_selection_results,
+        _select_layers_by_name,
+        _select_layers_by_type,
     )
-    from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
+    from mono_quant.io.handlers import _prepare_model
+    from mono_quant.modules.linear import quantize_conv2d_module, quantize_linear_module
 
     # Handle config override (config priority pattern)
     if config is not None:
         dtype = config.dtype
         if config.symmetric is not None:
             symmetric = config.symmetric
-        per_channel = config.per_channel
 
     # Copy model via _prepare_model (preserves original)
     model_copy = _prepare_model(model)
@@ -584,7 +585,7 @@ def static_quantize(
         skipped_layers.extend(sorted(new_skips))
 
         # Remove skipped layers from selected_layers
-        selected_layers = [l for l in selected_layers if l not in skip_set]
+        selected_layers = [name for name in selected_layers if name not in skip_set]
 
     # If no layers selected, return copy unchanged
     if not selected_layers:
@@ -874,10 +875,10 @@ def _quantize_int8_model(
         - skipped_layers: List of names for unsupported/excluded layers
     """
     # Local imports to avoid circular dependency
-    from mono_quant.io.handlers import _prepare_model
-    from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
-    from mono_quant.modules.embedding import quantize_embedding_module
     from mono_quant.core.observers import _get_layers_to_skip
+    from mono_quant.io.handlers import _prepare_model
+    from mono_quant.modules.embedding import quantize_embedding_module
+    from mono_quant.modules.linear import quantize_conv2d_module, quantize_linear_module
 
     # Get a copy of the model
     model_copy = _prepare_model(model)
@@ -983,8 +984,8 @@ def _quantize_sequential_module(
         parent_name: Parent module name for full path construction.
     """
     # Local import to avoid circular dependency
-    from mono_quant.modules.linear import quantize_linear_module, quantize_conv2d_module
     from mono_quant.modules.embedding import quantize_embedding_module
+    from mono_quant.modules.linear import quantize_conv2d_module, quantize_linear_module
 
     for i, module in enumerate(sequential):
         # Construct full layer name
@@ -1073,8 +1074,8 @@ def test_models_from_any_source() -> None:
     print("AGN-03 verification passed: Quantization works with models from any source")
     print(f"  - Custom model: {len(skipped_custom)} layers skipped")
     print(f"  - HF-like model: {len(skipped_hf)} layers skipped")
-    print(f"  - Pretrained-like: Single layer quantized")
-    print(f"  - FP16 model: All parameters converted to FP16")
+    print("  - Pretrained-like: Single layer quantized")
+    print("  - FP16 model: All parameters converted to FP16")
 
 
 def quantize_weight_int4(
@@ -1133,7 +1134,7 @@ def quantize_weight_int4(
         first value, high nibble stores the second value.
     """
     # Local imports to avoid circular dependencies
-    from mono_quant.core.mappers import calculate_scale_zp_groupwise, _pack_int4_to_int8
+    from mono_quant.core.mappers import _pack_int4_to_int8, calculate_scale_zp_groupwise
 
     if group_size <= 0:
         raise ValueError(f"group_size must be positive, got {group_size}")
@@ -1260,8 +1261,8 @@ def revert_to_standard_modules(
     """
     # Local imports
     from mono_quant.io.handlers import _prepare_model
-    from mono_quant.modules.linear import QuantizedLinear, QuantizedLinearInt4, QuantizedConv2d
     from mono_quant.modules.embedding import QuantizedEmbedding
+    from mono_quant.modules.linear import QuantizedConv2d, QuantizedLinear, QuantizedLinearInt4
 
     # Create copy if not inplace
     if not inplace:
