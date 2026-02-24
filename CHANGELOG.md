@@ -5,6 +5,20 @@ All notable changes to mono-quant will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `docs/dev/` developer documentation structure (AX-001)
+  - `ARCHITECTURE.md` — full layer architecture, module map, data flows
+  - `STATE_MACHINES.md` — 6 state machine diagrams
+  - `SPEC.md` — complete requirements index (v1.0/v1.1 done, v2.0 in progress)
+  - `CONTRIBUTING.md` — branch model, commit format, conventions, testing rules
+  - `tasks/TASKS.md` — complete task index T-001 to T-029
+  - `tasks/T-001` to `T-017` + `BF-001` — DETAIL.md + IMPL_LOG.md for all completed tasks
+  - `tasks/T-018` to `T-029` — DETAIL.md with full planning for pending Phase 6-8 work
+  - `adr/ADR-001` to `ADR-007` — architectural decision records
+- `CONTEXT.md` at project root — session resumption file
+
 ## [1.1.0] - 2025-01-04
 
 ### Added
