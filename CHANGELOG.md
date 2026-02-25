@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `result.save()` no longer crashes with `AttributeError` — dual `QuantizationInfo`
+  class collision resolved; `_build_metadata` now accepts `core.quantizers.QuantizationInfo`
+  and derives missing fields (BF-002)
+- INT4 symmetric quantization no longer inverts weights — removed spurious `- 8`
+  shift from `quantize_weight_int4`; round-trip cosine similarity now > 0.9 (BF-003)
+- CLI `monoquant` commands no longer raise `TypeError` on error paths — replaced
+  11 `_click.Context.exit(N)` class method calls with `raise SystemExit(N)` (BF-004)
+- `dequantize_model()` no longer crashes with `RuntimeError` on models with
+  `qint8` buffers — uses `.dequantize()` + `register_buffer()` correctly (BF-009)
+- CI test step no longer silently passes on test failures — removed `|| echo` fallback
+  from pytest invocation (BF-013)
+- `export_to_onnx()` is now accessible as a proper stub raising `NotImplementedError`
+  instead of `AttributeError`; corrected T-014–T-017 phantom DONE status (T-030)
+
+### Added
+- `docs/dev/tasks/BF-002` through `BF-013`, `T-030` through `T-033`, `CL-001` —
+  DETAIL.md files for all 17 audit findings (2026-02-25 correctness audit)
+- `tests/test_bugfixes.py` — 10 new tests covering all fixed code paths
+
 ### Added
 - `docs/dev/` developer documentation structure (AX-001)
   - `ARCHITECTURE.md` — full layer architecture, module map, data flows

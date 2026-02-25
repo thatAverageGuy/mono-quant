@@ -834,9 +834,20 @@ def dequantize_model(
             param.data = param.data.to(torch.float32)
 
     # Convert buffers to float32 (e.g., batch norm running stats)
-    for name, buffer in model.named_buffers():
-        if buffer.dtype == torch.qint8 or buffer.dtype == torch.float16:
-            buffer.data = buffer.data.to(torch.float32)
+    # Use register_buffer() — assigning to .data cannot change dtype on plain tensors.
+    for name, buffer in list(model.named_buffers()):
+        if buffer is None:
+            continue
+        if buffer.is_quantized:
+            # Quantized tensors must use .dequantize(); .to() doesn't work on qint8
+            new_buf = buffer.dequantize()
+        elif buffer.dtype == torch.float16:
+            new_buf = buffer.to(torch.float32)
+        else:
+            continue
+        parent_name, _, attr_name = name.rpartition(".")
+        parent = model if not parent_name else model.get_submodule(parent_name)
+        parent.register_buffer(attr_name, new_buf)
 
     return model
 

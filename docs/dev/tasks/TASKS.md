@@ -6,7 +6,69 @@
 
 ## Active
 
-*No active tasks. Phase 5 complete. Phase 6 planning not started.*
+*No active tasks.*
+
+---
+
+## Pending — Audit Fixes (Priority: Complete before Phase 6)
+
+> All items below were found during a correctness audit on 2026-02-25.
+> They are ordered by severity. Critical and High items must be resolved
+> before Phase 6 work begins — several cause runtime crashes or silent
+> data corruption on every code path.
+
+### Critical Bug Fixes
+
+| ID | Summary | Severity | Status | Depends On | Detail |
+|----|---------|----------|--------|------------|--------|
+| BF-002 | Fix dual QuantizationInfo — result.save() always crashes with AttributeError | C3 | DONE | — | docs/dev/tasks/BF-002/ |
+| BF-003 | Fix INT4 symmetric formula — spurious -8 shift inverts all weights | C2 | DONE | — | docs/dev/tasks/BF-003/ |
+| BF-004 | Fix CLI Context.exit() called as class method — TypeError at runtime | C10 | DONE | — | docs/dev/tasks/BF-004/ |
+| BF-007 | Fix quantize_weight_int4 fallback — returns wrong zero_points and wrong packing | C7 | TODO | — | docs/dev/tasks/BF-007/ |
+| BF-008 | Fix _quantize_int8_model nested layer detection — always False, dead code | C6 | TODO | — | docs/dev/tasks/BF-008/ |
+| BF-009 | Fix dequantize_model crash on qint8 buffers — .to() can't cast qint8 | C8 | DONE | — | docs/dev/tasks/BF-009/ |
+| T-030 | Correct ONNX export phantom — T-014–T-017 falsely marked DONE, no code exists | C1 | DONE | — | docs/dev/tasks/T-030/ |
+
+### High Priority Bug Fixes
+
+| ID | Summary | Severity | Status | Depends On | Detail |
+|----|---------|----------|--------|------------|--------|
+| BF-006 | Fix INT4 default skip list injected into all INT8 static_quantize calls | H2 | TODO | — | docs/dev/tasks/BF-006/ |
+| BF-010 | Fix quantize_embedding_module dropping dtype parameter | H5 | TODO | — | docs/dev/tasks/BF-010/ |
+| BF-011 | Fix _test_load_run mutating the model under test | H6 | TODO | — | docs/dev/tasks/BF-011/ |
+| BF-012 | Fix hardcoded weight range threshold 100 — false failures on real models | H4 | TODO | — | docs/dev/tasks/BF-012/ |
+| BF-013 | Fix CI silently swallowing test failures (|| echo fallback) | M5 | DONE | — | docs/dev/tasks/BF-013/ |
+| T-033 | Fix file path model input in quantize() — always crashes, feature non-functional | H1 | TODO | — | docs/dev/tasks/T-033/ |
+
+### Medium Priority Bug Fixes
+
+| ID | Summary | Severity | Status | Depends On | Detail |
+|----|---------|----------|--------|------------|--------|
+| BF-005 | Fix mutable default argument skip_set=set() in _quantize_sequential_module | C9 | TODO | — | docs/dev/tasks/BF-005/ |
+| CL-001 | Code quality cleanup — version strings, __all__ exports, stale test code, observer docs | M1-M4,M6,M7 | TODO | — | docs/dev/tasks/CL-001/ |
+
+### Calibration & Observer Fixes (Required for correct static quantization)
+
+| ID | Summary | Severity | Status | Depends On | Detail |
+|----|---------|----------|--------|------------|--------|
+| T-032 | Fix HistogramObserver — incompatible histogram accumulation and wrong zp formula | C5 | TODO | — | docs/dev/tasks/T-032/ |
+| T-031 | Implement activation-based calibration in static_quantize (currently dead code) | C4 | TODO | T-032 | docs/dev/tasks/T-031/ |
+
+---
+
+## Pending (v2.0 Phase 5 — ONNX Export) ⚠ Audit: Not Implemented
+
+> **Status Correction (2026-02-25):** T-014–T-017 were marked DONE in original
+> planning but `src/mono_quant/export/` does not exist. These tasks are NOT
+> complete. See T-030 for the correction task. Implementation tasks will be
+> assigned new IDs (T-034+) to preserve existing IMPL_LOG history.
+
+| ID | Summary | Status | Depends On | Detail |
+|----|---------|--------|------------|--------|
+| T-014 | Export infrastructure — BaseExporter, lazy imports, validation framework | TODO ⚠ | T-030 | docs/dev/tasks/T-014/ |
+| T-015 | ONNX QDQ node insertion utilities | TODO ⚠ | T-014 | docs/dev/tasks/T-015/ |
+| T-016 | Opset version support and quantization parameter preservation | TODO ⚠ | T-015 | docs/dev/tasks/T-016/ |
+| T-017 | CLI export command, error handling, validation testing | TODO ⚠ | T-016 | docs/dev/tasks/T-017/ |
 
 ---
 
@@ -57,10 +119,6 @@
 | T-012 | Python API — unified quantize(), QuantizationResult | 2026-02-03 | v1.0 | docs/dev/tasks/T-012/ |
 | T-013 | CLI interface — Click subcommands, progress bars, entry points | 2026-02-03 | v1.0 | docs/dev/tasks/T-013/ |
 | BF-001 | v1.1 — QuantizedConv2d INT8, QuantizedEmbedding, PyTorch-native deploy, revert | 2026-02-04 | v1.1 | docs/dev/tasks/BF-001/ |
-| T-014 | Export infrastructure — BaseExporter, lazy imports, validation framework | 2026-02-04 | v2.0/P5 | docs/dev/tasks/T-014/ |
-| T-015 | ONNX QDQ node insertion utilities | 2026-02-04 | v2.0/P5 | docs/dev/tasks/T-015/ |
-| T-016 | Opset version support and quantization parameter preservation | 2026-02-04 | v2.0/P5 | docs/dev/tasks/T-016/ |
-| T-017 | CLI export command, error handling, validation testing | 2026-02-04 | v2.0/P5 | docs/dev/tasks/T-017/ |
 
 ---
 
@@ -79,12 +137,24 @@
 | 3 — Advanced Calibration & INT4 | v1.0 | T-009 to T-011 | ✅ Done |
 | 4 — User Interfaces | v1.0 | T-012 to T-013 | ✅ Done |
 | v1.1 bugfixes & features | v1.1 | BF-001 | ✅ Done |
-| 5 — ONNX Export | v2.0 | T-014 to T-017 | ✅ Done |
+| Audit fixes (critical/high) | v1.2 | BF-002 to BF-009, T-030, T-033 | ☐ TODO |
+| Audit fixes (medium/calibration) | v1.2 | BF-005, BF-013, T-031, T-032, CL-001 | ☐ TODO |
+| 5 — ONNX Export | v2.0 | T-014 to T-017 | ⚠ NOT DONE |
 | 6 — GPTQ/AWQ Export | v2.0 | T-018 to T-021 | ☐ TODO |
 | 7 — GGUF Binary Export | v2.0 | T-022 to T-025 | ☐ TODO |
 | 8 — Unified Export API | v2.0 | T-026 to T-029 | ☐ TODO |
 
 ---
 
+## Audit Severity Reference
+
+| Code | Level | Description |
+|------|-------|-------------|
+| C1–C10 | Critical | Runtime crash or silent data corruption |
+| H1–H6 | High | Feature non-functional or produces wrong results |
+| M1–M7 | Medium | Quality/reliability issue, workaround exists |
+
+---
+
 *Status values: `TODO` → `IN_PROGRESS` → `DONE` | `BLOCKED`*
-*Updated: 2026-02-24*
+*Updated: 2026-02-25 (audit findings added)*
