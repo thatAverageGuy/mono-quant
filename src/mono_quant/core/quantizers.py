@@ -958,17 +958,16 @@ def _quantize_int8_model(
             skipped.append(name)
             continue
 
-        if isinstance(module, nn.Linear) and not isinstance(module, type(model_copy.get_submodule(name))):
-            # Found an unquantized Linear layer
+        if isinstance(module, nn.Linear):
+            # Found an unquantized Linear layer in a non-Sequential container
             q_module = quantize_linear_module(module, dtype=dtype, symmetric=symmetric)
             setattr(parent, child_name, q_module)
-        elif isinstance(module, nn.Conv2d) and not isinstance(module, type(model_copy.get_submodule(name))):
-            # Found an unquantized Conv2d layer
+        elif isinstance(module, nn.Conv2d):
+            # Found an unquantized Conv2d layer in a non-Sequential container
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             setattr(parent, child_name, q_module)
-        elif isinstance(module, nn.Embedding) and not isinstance(module, type(model_copy.get_submodule(name))):  # NEW
-            # Found an unquantized Embedding layer
-            from mono_quant.modules.embedding import quantize_embedding_module
+        elif isinstance(module, nn.Embedding):
+            # Found an unquantized Embedding layer in a non-Sequential container
             q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
             setattr(parent, child_name, q_module)
 
