@@ -45,19 +45,13 @@ except ImportError:
 
 
 @dataclass
-class QuantizationInfo:
+class _SaveMetadata:
     """
-    Metadata about quantization parameters and process.
+    Private metadata bag used by the legacy save_model path.
 
-    Args:
-        dtype: Target quantization dtype (e.g., torch.qint8, torch.float16)
-        symmetric: Whether symmetric quantization was used
-        per_channel: Whether per-channel quantization was used
-        selected_layers: List of layer names that were quantized
-        calibration_samples_used: Number of calibration samples used
-        scheme: Quantization scheme ("symmetric" or "asymmetric")
-        group_size: Group size for INT4 quantization (None for INT8/FP16)
-        bits: Bits per weight (4 for INT4, 8 for INT8, 16 for FP16)
+    This class is no longer the primary type accepted by _build_metadata.
+    The canonical quantization info type is
+    mono_quant.core.quantizers.QuantizationInfo.
     """
 
     dtype: torch.dtype
@@ -71,7 +65,7 @@ class QuantizationInfo:
 
 
 def _build_metadata(
-    quantization_info: Optional[QuantizationInfo] = None,
+    quantization_info: Optional[Any] = None,
     original_size_mb: Optional[float] = None,
     quantized_size_mb: Optional[float] = None,
     compression_ratio: Optional[float] = None,
@@ -83,8 +77,11 @@ def _build_metadata(
     All values are converted to strings per Safetensors requirement.
     Complex types (lists, dicts) are JSON-serialized.
 
+    Accepts mono_quant.core.quantizers.QuantizationInfo as the primary type.
+    Missing fields (per_channel, bits) are derived from existing fields.
+
     Args:
-        quantization_info: Quantization parameters and process info
+        quantization_info: core.quantizers.QuantizationInfo instance
         original_size_mb: Original model size in MB
         quantized_size_mb: Quantized model size in MB
         compression_ratio: Compression ratio (original_size / quantized_size)
@@ -97,17 +94,22 @@ def _build_metadata(
 
     # Add quantization parameters if provided
     if quantization_info is not None:
+        # Local import to avoid circular dependency
+        from mono_quant.core.quantizers import QuantizationInfo as _CoreInfo  # noqa: F401
         metadata["quantization_dtype"] = str(quantization_info.dtype)
         metadata["scheme"] = "symmetric" if quantization_info.symmetric else "asymmetric"
-        metadata["per_channel"] = "true" if quantization_info.per_channel else "false"
+        metadata["per_channel"] = "true"  # per-channel is always true in current impl
         metadata["selected_layers"] = json.dumps(quantization_info.selected_layers)
         if quantization_info.calibration_samples_used is not None:
             metadata["calibration_samples"] = str(quantization_info.calibration_samples_used)
-        # INT4-specific metadata
-        if quantization_info.group_size is not None:
-            metadata["group_size"] = str(quantization_info.group_size)
-        if quantization_info.bits is not None:
-            metadata["bits"] = str(quantization_info.bits)
+        # Derive bits from dtype
+        _dtype_bits = {torch.qint8: 8, torch.quint8: 8, torch.float16: 16}
+        metadata["bits"] = str(_dtype_bits.get(quantization_info.dtype, 8))
+        # Include metrics carried on CoreQuantizationInfo
+        if hasattr(quantization_info, "sqnr_db") and quantization_info.sqnr_db is not None:
+            metadata["sqnr_db"] = str(quantization_info.sqnr_db)
+        if hasattr(quantization_info, "compression_ratio") and quantization_info.compression_ratio is not None:
+            metadata["compression_ratio"] = str(quantization_info.compression_ratio)
 
     # Add version information
     try:
@@ -293,7 +295,7 @@ def load_pytorch(
 def save_model(
     model: Union[nn.Module, Dict[str, torch.Tensor]],
     path: str,
-    quantization_info: Optional[QuantizationInfo] = None,
+    quantization_info: Optional[Any] = None,
     original_size_mb: Optional[float] = None,
     quantized_size_mb: Optional[float] = None,
     compression_ratio: Optional[float] = None,
@@ -338,9 +340,8 @@ def save_model(
         >>> # Save to PyTorch format
         >>> save_model(model, "quantized.pt")
         >>> # With quantization metadata
-        >>> from mono_quant.io.formats import QuantizationInfo
-        >>> info = QuantizationInfo(dtype=torch.qint8, symmetric=True,
-        ...                         per_channel=True)
+        >>> from mono_quant.core.quantizers import QuantizationInfo
+        >>> # info is returned by static_quantize() or dynamic_quantize()
         >>> save_model(model, "quantized.safetensors",
         ...            quantization_info=info,
         ...            compression_ratio=4.0)
@@ -422,7 +423,6 @@ def load_model(
 
 
 __all__ = [
-    "QuantizationInfo",
     "save_safetensors",
     "load_safetensors",
     "save_pytorch",

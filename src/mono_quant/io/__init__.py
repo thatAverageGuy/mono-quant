@@ -37,7 +37,6 @@ Example:
 
 # Format handlers (save/load)
 from mono_quant.io.formats import (
-    QuantizationInfo,
     _build_metadata,
     load_model,
     load_pytorch,
@@ -76,7 +75,6 @@ __all__ = [
     "calculate_sqnr",
     "validate_quantization",
     # Metadata
-    "QuantizationInfo",
     "_build_metadata",
     # Internal handlers
     "_prepare_model",
