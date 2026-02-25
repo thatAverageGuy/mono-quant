@@ -129,7 +129,7 @@ def quantize_cmd(
                     "Use --dynamic flag or provide --calibration file.",
                     err=True,
                 )
-                _click.Context.exit(2)
+                raise SystemExit(2)
 
             # Note: Calibration file loading from CLI is a placeholder
             # In a full implementation, this would load calibration tensors
@@ -141,14 +141,14 @@ def quantize_cmd(
                 "  result = quantize(model, bits=8, calibration_data=calibration_data)",
                 err=True,
             )
-            _click.Context.exit(2)
+            raise SystemExit(2)
 
         # Check if quantization succeeded
         if not result.success:
             for error in result.errors:
                 _click.echo(f"Error: {error}", err=True)
             if strict:
-                _click.Context.exit(3)
+                raise SystemExit(3)
             return
 
         # Determine output path
@@ -173,7 +173,7 @@ def quantize_cmd(
                 _click.echo("\nWarnings encountered:", err=True)
                 for warning in result.warnings:
                     _click.echo(f"  {warning}", err=True)
-                _click.Context.exit(3)
+                raise SystemExit(3)
             else:
                 if verbose:
                     _click.echo("\nWarnings:")
@@ -182,14 +182,14 @@ def quantize_cmd(
 
     except MonoQuantError as e:
         _click.echo(f"Error: {e}", err=True)
-        _click.Context.exit(2)
+        raise SystemExit(2)
     except Exception as e:
         _click.echo(f"Unexpected error: {e}", err=True)
         if verbose:
             import traceback
 
             traceback.print_exc()
-        _click.Context.exit(1)
+        raise SystemExit(1)
 
 
 # validate_cmd - Validate a quantized model
@@ -244,7 +244,7 @@ def validate_cmd(model_path: str, strict: bool) -> None:
             for error in errors:
                 _click.echo(f"  ✗ {error}", err=True)
             if strict:
-                _click.Context.exit(4)
+                raise SystemExit(4)
         else:
             _click.echo("\n  All checks passed ✓")
 
@@ -255,7 +255,7 @@ def validate_cmd(model_path: str, strict: bool) -> None:
 
     except Exception as e:
         _click.echo(f"Error during validation: {e}", err=True)
-        _click.Context.exit(4)
+        raise SystemExit(4)
 
 
 # info_cmd - Display model information
@@ -347,7 +347,7 @@ def info_cmd(model_path: str, format: str) -> None:
 
     except Exception as e:
         _click.echo(f"Error reading model info: {e}", err=True)
-        _click.Context.exit(5)
+        raise SystemExit(5)
 
 
 # compare_cmd - Compare original and quantized models
@@ -421,7 +421,7 @@ def compare_cmd(original_path: str, quantized_path: str, metrics: tuple) -> None
 
     except Exception as e:
         _click.echo(f"Error during comparison: {e}", err=True)
-        _click.Context.exit(1)
+        raise SystemExit(1)
 
 
 # calibrate_cmd - Run calibration on a model
@@ -456,7 +456,7 @@ def calibrate_cmd(model_path: str, data_path: str, output: Optional[str], sample
     _click.echo("  import torch")
     _click.echo("  calibration_data = [torch.randn(32, 128) for _ in range(100)]")
     _click.echo("  result = quantize(model, bits=8, calibration_data=calibration_data)")
-    _click.Context.exit(1)
+    raise SystemExit(1)
 
 
 __all__ = [
