@@ -482,7 +482,7 @@ def static_quantize(
     """
     # Local imports to avoid circular dependencies
     from mono_quant.calibration.data import _normalize_calibration_data
-    from mono_quant.calibration.runner import run_calibration
+    from mono_quant.calibration.runner import collect_observer_stats, run_calibration
     from mono_quant.core.observers import (
         DEFAULT_INT4_SKIP,
         MinMaxObserver,
@@ -612,9 +612,12 @@ def static_quantize(
             observer = MinMaxObserver(dtype=dtype)
             observers[layer_name] = observer
 
-            # Register forward hook to track activations
+            # Register forward hook to track input activations.
+            # Observing input[0] (not output) gives the actual distribution
+            # that enters this layer — the correct range for input quantization.
             def hook_fn(module, input, output, obs=observer):
-                obs.forward(output)
+                if input and input[0] is not None:
+                    obs.forward(input[0])
 
             hook = layer.register_forward_hook(hook_fn)
             hooks.append(hook)
@@ -633,13 +636,21 @@ def static_quantize(
     for hook in hooks:
         hook.remove()
 
+    # Collect activation scale/zero-point from each observer that saw data
+    activation_qparams = collect_observer_stats(observers)
+
     # Step 3: Quantize selected layers
     for layer_name in selected_layers:
         try:
             layer = model_copy.get_submodule(layer_name)
 
             if isinstance(layer, nn.Linear):
-                q_module = quantize_linear_module(layer, dtype=dtype, symmetric=symmetric)
+                act = activation_qparams.get(layer_name)
+                q_module = quantize_linear_module(
+                    layer, dtype=dtype, symmetric=symmetric,
+                    input_scale=act[0] if act else None,
+                    input_zero_point=act[1] if act else None,
+                )
                 # Replace in parent
                 parent_name, child_name = _split_layer_name(layer_name)
                 if parent_name:

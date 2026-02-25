@@ -239,6 +239,39 @@ def run_calibration(
     return observers
 
 
+def collect_observer_stats(
+    observers: Dict,
+) -> Dict[str, tuple]:
+    """
+    Collect computed quantization parameters from all observers that have data.
+
+    Called after run_calibration() to extract scale and zero-point from each
+    observer that observed at least one batch during calibration.
+
+    Args:
+        observers: Dict mapping layer name to observer instance (as returned
+                   by the caller that registered forward hooks).
+
+    Returns:
+        Dict mapping layer name to (scale, zero_point) tensor tuple.
+        Layers where the observer never saw data (min_val is None) are excluded.
+
+    Examples:
+        >>> from mono_quant.calibration.runner import collect_observer_stats, create_observer
+        >>> obs = {"linear_0": create_observer("MinMax")}
+        >>> obs["linear_0"].forward(torch.randn(4, 8))
+        >>> stats = collect_observer_stats(obs)
+        >>> scale, zp = stats["linear_0"]
+        >>> assert scale > 0
+    """
+    stats = {}
+    for name, observer in observers.items():
+        if observer.min_val is not None:
+            scale, zp = observer.calculate_qparams()
+            stats[name] = (scale, zp)
+    return stats
+
+
 def _auto_detect_progress_threshold(num_samples: int) -> bool:
     """
     Determine whether to show progress bar based on sample count.

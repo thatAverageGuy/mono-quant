@@ -65,6 +65,12 @@ class QuantizedLinear(nn.Module):
         # Store quantized weight (cached after quantization)
         self._quantized_weight: Optional[torch.Tensor] = None
 
+        # Activation quantization parameters set by static calibration.
+        # When set, forward() fake-quantizes the input tensor to simulate
+        # INT8 precision loss on activations.
+        self.input_scale: Optional[float] = None
+        self.input_zero_point: int = 0
+
         # Bias is stored as-is (not quantized)
         if bias:
             self.bias = nn.Parameter(torch.zeros(out_features))
@@ -135,6 +141,17 @@ class QuantizedLinear(nn.Module):
             raise RuntimeError(
                 "QuantizedLinear has no quantized weights. "
                 "Use from_linear() or set _quantized_weight directly."
+            )
+
+        # Fake-quantize input activations when activation qparams are available.
+        # This simulates INT8 precision loss on activations (static quantization).
+        if self.input_scale is not None:
+            input = torch.fake_quantize_per_tensor_affine(
+                input.float(),
+                scale=self.input_scale,
+                zero_point=self.input_zero_point,
+                quant_min=-128,
+                quant_max=127,
             )
 
         # Dequantize weight for computation
@@ -291,6 +308,8 @@ def quantize_linear_module(
     module: nn.Linear,
     dtype: torch.dtype = torch.qint8,
     symmetric: bool = False,
+    input_scale: Optional[torch.Tensor] = None,
+    input_zero_point: Optional[torch.Tensor] = None,
 ) -> QuantizedLinear:
     """
     Quantize an nn.Linear module to a QuantizedLinear.
@@ -341,6 +360,11 @@ def quantize_linear_module(
     # Copy bias if present (bias is not quantized)
     if module.bias is not None:
         q_module.bias.data = module.bias.data.clone()
+
+    # Store activation qparams from static calibration (if provided)
+    if input_scale is not None and input_zero_point is not None:
+        q_module.input_scale = float(input_scale.item())
+        q_module.input_zero_point = int(input_zero_point.item())
 
     return q_module
 

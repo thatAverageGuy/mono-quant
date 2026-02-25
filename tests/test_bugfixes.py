@@ -557,3 +557,56 @@ def test_histogram_observer_zero_point_symmetric_activations():
         f"zero_point {zp.item()} should be ~0 for symmetric activations"
     )
     assert scale.item() > 0, "scale must be positive"
+
+
+# ---------------------------------------------------------------------------
+# T-031: Activation-based calibration stats are collected and applied
+# ---------------------------------------------------------------------------
+
+def test_static_quantize_sets_input_scale_from_calibration():
+    """T-031: static_quantize must set input_scale on QuantizedLinear when cal data provided."""
+    from mono_quant import static_quantize
+    from mono_quant.modules.linear import QuantizedLinear
+
+    model = nn.Sequential(nn.Linear(8, 8), nn.ReLU(), nn.Linear(8, 4))
+    cal_data = [torch.randn(4, 8) for _ in range(10)]
+
+    q_model, _ = static_quantize(model, cal_data)
+
+    quantized_linears = [
+        m for _, m in q_model.named_modules() if isinstance(m, QuantizedLinear)
+    ]
+    assert quantized_linears, "static_quantize must produce QuantizedLinear modules"
+
+    has_activation_qparams = any(m.input_scale is not None for m in quantized_linears)
+    assert has_activation_qparams, (
+        "static_quantize must set input_scale on at least one QuantizedLinear "
+        "when calibration data is provided"
+    )
+
+
+def test_static_quantize_forward_with_activation_qparams():
+    """T-031: static-quantized model with activation qparams produces correct output shape."""
+    from mono_quant import static_quantize
+
+    model = nn.Linear(8, 4)
+    cal_data = [torch.randn(2, 8) for _ in range(5)]
+
+    q_model, _ = static_quantize(model, cal_data)
+    out = q_model(torch.randn(3, 8))
+    assert out.shape == (3, 4), f"Expected (3, 4), got {out.shape}"
+
+
+def test_static_quantize_no_calibration_data_no_input_scale():
+    """T-031: static_quantize without calibration data leaves input_scale as None (graceful fallback)."""
+    from mono_quant import static_quantize
+    from mono_quant.modules.linear import QuantizedLinear
+
+    model = nn.Linear(8, 4)
+    q_model, _ = static_quantize(model, [])
+
+    for _, m in q_model.named_modules():
+        if isinstance(m, QuantizedLinear):
+            assert m.input_scale is None, (
+                "No calibration data → input_scale must remain None"
+            )

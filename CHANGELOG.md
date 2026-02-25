@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HistogramObserver.calculate_qparams()` now uses the correct symmetric scale
   `2T/(qmax-qmin)` instead of `T/(qmax-qmin)` and the standard zero-point formula
   `round(qmin - min_val/scale)` (T-032 Bug B)
+- `static_quantize` calibration is no longer dead code — observer stats are now
+  collected via `collect_observer_stats()` and applied as `input_scale`/
+  `input_zero_point` on `QuantizedLinear`; `forward()` fake-quantizes input
+  activations to simulate INT8 precision loss (T-031)
+- Forward hooks in `static_quantize` now observe `input[0]` (actual layer input
+  distribution) instead of `output` — producing correct activation qparams (T-031)
 
 ### Changed
 - `static_quantize` `group_size` parameter default changed from `128` to `0` —

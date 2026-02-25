@@ -2,10 +2,10 @@
 
 ## Current State
 
-**Task:** T-032 implemented, awaiting commit approval
-**Phase:** Pre-Phase-6 — 16/17 audit fixes done; T-031 remaining
+**Task:** T-031 implemented, awaiting commit approval
+**Phase:** Pre-Phase-6 — all 17 audit fixes done
 **Branch:** dev
-**Last Commit:** aac15c9 (CL-001: Code quality cleanup)
+**Last Commit:** 7335f7d (T-032: Fix HistogramObserver)
 **Date:** 2026-02-25
 
 ## Previous Session Summary
@@ -19,30 +19,27 @@ T-032 implemented in current session (HistogramObserver rewrite).
 
 ## Current Task State
 
-**T-032: DONE — implemented and tested, pending commit approval**
+**T-031: DONE — implemented and tested, pending commit approval**
 
-All previously committed:
-- T-030, BF-002–BF-013 (all), CL-001, T-033: all DONE and committed
+All 17 audit tasks now complete (T-030, BF-002–BF-013, CL-001, T-033, T-032, T-031).
 
-T-032 changes:
-- `HistogramObserver.forward()`: `torch.histogram` → `torch.histc` with fixed
-  [running_min, running_max] range; reset on range expansion (Bug A)
-- `HistogramObserver.calculate_qparams()`: scale `2T/255` (was `T/255`);
-  standard `round(qmin - min_val/scale)` zero-point formula (Bug B)
-- Attribute: `histogram_counts`+`bin_edges` → `histogram`
-- 4 new tests added; 32/32 passing
+T-031 changes:
+- `calibration/runner.py`: added `collect_observer_stats(observers)` function
+- `calibration/__init__.py`: exported `collect_observer_stats`
+- `modules/linear.py`: `QuantizedLinear` gains `input_scale`/`input_zero_point`
+  attrs; `forward()` fake-quantizes input when set; `quantize_linear_module`
+  accepts and applies activation qparams
+- `core/quantizers.py`: hook changed to `input[0]`; `collect_observer_stats`
+  called after calibration; stats passed to `quantize_linear_module`
+- 3 new tests added; 35/35 passing
 
-**Test suite:** 32/32 passing (28 previous + 4 T-032)
-
-**Remaining audit task:**
-- T-031: activation-based calibration (C4, depends on T-032)
+**Test suite:** 35/35 passing
 
 ## Next Steps
 
-1. [ ] Get user approval for T-032 commit
-2. [ ] Commit T-032 (single commit)
-3. [ ] Continue with T-031 (activation calibration — last audit task)
-4. [ ] Then Phase 5 ONNX implementation (T-034+)
+1. [ ] Get user approval for T-031 commit
+2. [ ] Commit T-031 (single commit)
+3. [ ] All audit fixes complete — proceed to Phase 5 ONNX implementation (T-034+)
 
 ## Open Questions / Decisions Pending
 
