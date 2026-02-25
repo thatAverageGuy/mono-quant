@@ -51,7 +51,7 @@
 
 | ID | Summary | Severity | Status | Depends On | Detail |
 |----|---------|----------|--------|------------|--------|
-| T-032 | Fix HistogramObserver — incompatible histogram accumulation and wrong zp formula | C5 | TODO | — | docs/dev/tasks/T-032/ |
+| T-032 | Fix HistogramObserver — incompatible histogram accumulation and wrong zp formula | C5 | DONE | — | docs/dev/tasks/T-032/ |
 | T-031 | Implement activation-based calibration in static_quantize (currently dead code) | C4 | TODO | T-032 | docs/dev/tasks/T-031/ |
 
 ---
@@ -139,7 +139,7 @@
 | v1.1 bugfixes & features | v1.1 | BF-001 | ✅ Done |
 | Audit fixes (critical/high) | v1.2 | BF-002 to BF-009, T-030, T-033 | ✅ Done |
 | Audit fixes (medium/calibration) | v1.2 | BF-005, BF-013, CL-001 | ✅ Done |
-| Calibration & observer fixes | v1.2 | T-031, T-032 | ☐ TODO |
+| Calibration & observer fixes | v1.2 | T-031, T-032 | ⬤ T-032 Done, T-031 TODO |
 | 5 — ONNX Export | v2.0 | T-014 to T-017 | ⚠ NOT DONE |
 | 6 — GPTQ/AWQ Export | v2.0 | T-018 to T-021 | ☐ TODO |
 | 7 — GGUF Binary Export | v2.0 | T-022 to T-025 | ☐ TODO |

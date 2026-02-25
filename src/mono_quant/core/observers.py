@@ -356,8 +356,7 @@ class HistogramObserver:
     Attributes:
         bins: Number of histogram bins.
         dtype: The target quantization dtype.
-        histogram_counts: Accumulated bin counts across all forward passes.
-        bin_edges: Bin edge values (consistent across accumulations).
+        histogram: Accumulated bin counts across all forward passes (consistent bin range).
         min_val: Global minimum observed across all forward passes.
         max_val: Global maximum observed across all forward passes.
 
@@ -378,8 +377,7 @@ class HistogramObserver:
     ) -> None:
         self.bins = bins
         self.dtype = dtype
-        self.histogram_counts: Optional[torch.Tensor] = None
-        self.bin_edges: Optional[torch.Tensor] = None
+        self.histogram: Optional[torch.Tensor] = None
         self.min_val: Optional[float] = None
         self.max_val: Optional[float] = None
 
@@ -396,8 +394,8 @@ class HistogramObserver:
         Examples:
             >>> obs = HistogramObserver(bins=100)
             >>> obs.forward(torch.randn(1000))
-            >>> assert obs.histogram_counts is not None
-            >>> obs.forward(torch.randn(1000))  # Accumulates
+            >>> assert obs.histogram is not None
+            >>> obs.forward(torch.randn(1000))  # Accumulates with consistent bin range
         """
         # Track global min/max
         x_min = x.amin().item()
@@ -407,20 +405,26 @@ class HistogramObserver:
             self.min_val = x_min
             self.max_val = x_max
         else:
-            self.min_val = min(self.min_val, x_min)
-            self.max_val = max(self.max_val, x_max)
+            new_min = min(self.min_val, x_min)
+            new_max = max(self.max_val, x_max)
+            if new_min < self.min_val or new_max > self.max_val:
+                # Range expanded — old histogram used different bin edges; reset.
+                # Previous counts are incompatible with the new bin layout.
+                self.histogram = None
+                self.min_val = new_min
+                self.max_val = new_max
 
-        # Build histogram for current tensor
-        new_counts, new_edges = torch.histogram(x.flatten(), bins=self.bins)
+        # Accumulate using a fixed [min, max] range so all batches share
+        # the same bin edges and counts are directly comparable.
+        new_counts = torch.histc(
+            x.float(), bins=self.bins,
+            min=self.min_val, max=self.max_val,
+        )
 
-        # Accumulate histograms
-        if self.histogram_counts is None:
-            # First observation - store as-is
-            self.histogram_counts = new_counts
-            self.bin_edges = new_edges
+        if self.histogram is None:
+            self.histogram = new_counts
         else:
-            # Accumulate counts (bin_edges stay consistent)
-            self.histogram_counts += new_counts
+            self.histogram += new_counts
 
     def calculate_qparams(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -446,29 +450,29 @@ class HistogramObserver:
             >>> assert scale > 0
             >>> assert isinstance(zp.item(), int)
         """
-        if self.histogram_counts is None:
+        if self.histogram is None:
             raise RuntimeError(
                 "No data observed. Call forward() with calibration data "
                 "before calculating quantization parameters."
             )
 
         # Get distribution P from histogram
-        P = self.histogram_counts.float()
+        P = self.histogram.float()
         P = P / P.sum()  # Normalize to sum=1
 
         # Find optimal threshold using KL divergence minimization
         optimal_threshold = self._find_optimal_threshold(P)
 
-        # Use threshold to determine min/max for quantization
-        range_val = optimal_threshold
+        # Symmetric clipping range: [-T, T]
+        # scale = (T - (-T)) / (qmax - qmin) = 2T / 255
         qmin, qmax = -128, 127
-        q_range = qmax - qmin
-        scale = range_val / q_range
+        min_val = -optimal_threshold
+        max_val = optimal_threshold
+        scale = (max_val - min_val) / (qmax - qmin)
         scale = max(scale, 1e-8)  # Clamp to avoid division by zero
 
-        # Calculate zero-point (assuming symmetric around 0 for threshold)
-        zero_point = qmin - ((-optimal_threshold / 2) / scale)
-        zero_point = int(round(zero_point))
+        # Standard asymmetric zero-point: zp = round(qmin - min_val / scale)
+        zero_point = int(round(qmin - min_val / scale))
         zero_point = max(qmin, min(qmax, zero_point))
 
         return torch.tensor(scale), torch.tensor(zero_point, dtype=torch.int32)
@@ -586,11 +590,10 @@ class HistogramObserver:
             >>> obs = HistogramObserver()
             >>> obs.forward(torch.randn(100))
             >>> obs.reset()
-            >>> assert obs.histogram_counts is None
+            >>> assert obs.histogram is None
             >>> assert obs.min_val is None
         """
-        self.histogram_counts = None
-        self.bin_edges = None
+        self.histogram = None
         self.min_val = None
         self.max_val = None
 

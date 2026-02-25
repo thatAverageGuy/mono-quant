@@ -481,3 +481,79 @@ def test_test_models_not_in_public_api():
     assert not hasattr(mono_quant, "test_models_from_any_source"), (
         "test_models_from_any_source should not be in the public API"
     )
+
+
+# ---------------------------------------------------------------------------
+# T-032: HistogramObserver — consistent histogram accumulation (Bug A)
+#         and correct asymmetric zero-point formula (Bug B)
+# ---------------------------------------------------------------------------
+
+def test_histogram_observer_consistent_bins_same_range():
+    """T-032 Bug A: Two batches with the same range accumulate correctly.
+
+    Total histogram count must equal total elements across both batches.
+    """
+    from mono_quant.core.observers import HistogramObserver
+
+    obs = HistogramObserver(bins=64)
+    batch = torch.linspace(0.0, 1.0, 100)
+    obs.forward(batch)
+    obs.forward(batch)
+
+    total = obs.histogram.sum().item()
+    assert abs(total - 200) < 1, (
+        f"Expected 200 total counts (100 per batch), got {total}"
+    )
+
+
+def test_histogram_observer_range_expands_tracks_full_range():
+    """T-032 Bug A: After a batch that expands the range, min_val/max_val cover both batches.
+
+    The old code accumulated counts from batches with different bin edges —
+    semantically meaningless. The fix ensures the running range is always correct
+    so KL divergence operates on a coherent histogram.
+    """
+    from mono_quant.core.observers import HistogramObserver
+
+    obs = HistogramObserver(bins=20)
+    obs.forward(torch.zeros(50))        # range [0, 0]
+    obs.forward(torch.full((50,), 6.0)) # range expands to [0, 6]
+
+    assert obs.min_val == 0.0, f"min_val should be 0, got {obs.min_val}"
+    assert obs.max_val == 6.0, f"max_val should be 6, got {obs.max_val}"
+    # After range expansion, histogram is reset and only the latest batch is counted
+    assert obs.histogram.sum().item() > 0, "histogram must have counts after forward"
+
+
+def test_histogram_observer_zero_point_positive_activations():
+    """T-032 Bug B: Zero-point for all-positive activations is not anchored at qmin.
+
+    The buggy formula used (-T/2)/scale which introduced a wrong symmetric offset.
+    The correct formula zp = round(qmin - min_val/scale) with min_val=-T gives
+    zero_point close to 0 (> qmin=-128) for a symmetric clipping range [-T, T].
+    """
+    from mono_quant.core.observers import HistogramObserver
+
+    obs = HistogramObserver(bins=256)
+    obs.forward(torch.linspace(0.0, 1.0, 1000))
+    scale, zp = obs.calculate_qparams()
+
+    qmin = -128
+    assert zp.item() > qmin, (
+        f"zero_point {zp.item()} should be > qmin={qmin} for positive activations"
+    )
+    assert scale.item() > 0, "scale must be positive"
+
+
+def test_histogram_observer_zero_point_symmetric_activations():
+    """T-032 Bug B: Zero-point for symmetric activations [-1, 1] is approximately 0."""
+    from mono_quant.core.observers import HistogramObserver
+
+    obs = HistogramObserver(bins=256)
+    obs.forward(torch.linspace(-1.0, 1.0, 1000))
+    scale, zp = obs.calculate_qparams()
+
+    assert abs(zp.item()) <= 1, (
+        f"zero_point {zp.item()} should be ~0 for symmetric activations"
+    )
+    assert scale.item() > 0, "scale must be positive"

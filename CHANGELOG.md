@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of `AttributeError`; corrected T-014–T-017 phantom DONE status (T-030)
 - `quantize()` now raises `TypeError` with a helpful message when passed a file path
   string or Path object, instead of crashing deep in `_prepare_model` (T-033)
+- `HistogramObserver.forward()` now accumulates histogram counts with a consistent
+  fixed `[running_min, running_max]` bin range using `torch.histc` — successive
+  batches with different value ranges no longer produce meaningless bin additions;
+  range expansion resets the histogram so KL divergence operates on coherent data (T-032 Bug A)
+- `HistogramObserver.calculate_qparams()` now uses the correct symmetric scale
+  `2T/(qmax-qmin)` instead of `T/(qmax-qmin)` and the standard zero-point formula
+  `round(qmin - min_val/scale)` (T-032 Bug B)
 
 ### Changed
 - `static_quantize` `group_size` parameter default changed from `128` to `0` —
