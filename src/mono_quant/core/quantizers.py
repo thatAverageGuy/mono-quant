@@ -1192,10 +1192,10 @@ def quantize_weight_int4(
         group_zp = zero_points[g].item()
 
         if symmetric:
-            # Symmetric: int4 = round(weight / scale) - 8
-            # The -8 shifts the range from [0, 15] to [-8, 7]
+            # Symmetric: int4 = round(weight / scale), clamped to [-8, 7]
+            # pack/unpack handle signed [-8,7] via two's complement bitwise ops
             int4_group = torch.clamp(
-                (group_weights / group_scale).round().to(torch.int32) - 8,
+                (group_weights / group_scale).round().to(torch.int32),
                 qmin, qmax
             )
         else:
