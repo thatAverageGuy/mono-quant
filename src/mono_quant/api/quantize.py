@@ -128,30 +128,21 @@ def quantize(
         dynamic_quantize,
         static_quantize,
     )
-    from mono_quant.io import load_model
     from mono_quant.io.handlers import _prepare_model
 
     from .exceptions import ConfigurationError, InputError
 
-    # Step 1: Input normalization
-    # If model is a file path, load it first
+    # Step 1: Input validation
+    # File path input is not supported — quantize() is a model transformation,
+    # not a model loader. Load the model first, then pass the nn.Module.
     if isinstance(model, (str, Path)):
-        model_path = str(model)
-        try:
-            state_dict = load_model(model_path)
-            # Convert state_dict to model via _prepare_model
-            # Note: We don't have architecture info, so this will fail for pure state_dict
-            # Users should provide nn.Module or use dynamic quantization
-            if isinstance(state_dict, dict):
-                # Try to handle as state_dict - user must provide architecture
-                # For now, load_model returns state_dict, we'll pass it through
-                # and let the quantizer handle it
-                model = state_dict
-        except Exception as e:
-            raise InputError(
-                f"Failed to load model from '{model_path}'",
-                suggestion=f"Ensure the file exists and is a valid .pt/.pth/.safetensors file. Error: {e}"
-            )
+        raise TypeError(
+            f"quantize() expects an nn.Module, got {type(model).__name__!r}. "
+            "To quantize from a file, load the model first:\n"
+            "    import torch\n"
+            "    model = torch.load('path.pt')\n"
+            "    result = quantize(model, ...)"
+        )
 
     # Prepare model (copy if nn.Module, handle state_dict)
     try:
@@ -159,7 +150,7 @@ def quantize(
     except (TypeError, ValueError) as e:
         raise InputError(
             f"Invalid model input: {e}",
-            suggestion="Provide an nn.Module, state_dict, or valid file path"
+            suggestion="Provide an nn.Module or state_dict"
         )
 
     # Step 2: Parameter validation and mapping
