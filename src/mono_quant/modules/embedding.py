@@ -77,6 +77,7 @@ class QuantizedEmbedding(nn.Module):
     def from_embedding(
         cls,
         module: nn.Embedding,
+        dtype: torch.dtype = torch.qint8,
         symmetric: bool = False,
     ) -> "QuantizedEmbedding":
         """
@@ -87,6 +88,8 @@ class QuantizedEmbedding(nn.Module):
 
         Args:
             module: Source nn.Embedding module to quantize.
+            dtype: Target quantization dtype. torch.qint8 uses INT8 quantization;
+                   torch.float16 casts weights to half precision.
             symmetric: If True, use symmetric quantization. Default is False.
 
         Returns:
@@ -110,16 +113,21 @@ class QuantizedEmbedding(nn.Module):
             norm_type=module.norm_type,
             scale_grad_by_freq=module.scale_grad_by_freq,
             sparse=module.sparse,
+            dtype=dtype,
             symmetric=symmetric,
         )
 
-        # Quantize the weight using per-tensor quantization (not per-channel)
-        # Note: Embeddings use per-tensor quantization because each embedding
-        # vector is independent
-        from mono_quant.core.quantizers import quantize_weight_int8
-        q_emb._quantized_weight = quantize_weight_int8(
-            module.weight.data, symmetric=symmetric, axis=0
-        )
+        if dtype == torch.float16:
+            # FP16: store as half-precision (no INT8 quantization)
+            q_emb._quantized_weight = module.weight.data.half()
+        else:
+            # INT8 (default): quantize the weight using per-tensor quantization
+            # Note: Embeddings use per-tensor quantization because each embedding
+            # vector is independent
+            from mono_quant.core.quantizers import quantize_weight_int8
+            q_emb._quantized_weight = quantize_weight_int8(
+                module.weight.data, symmetric=symmetric, axis=0
+            )
 
         return q_emb
 
@@ -140,9 +148,13 @@ class QuantizedEmbedding(nn.Module):
                 "Use from_embedding() or set _quantized_weight directly."
             )
 
-        # Dequantize weight for computation
-        from mono_quant.core.quantizers import dequantize_weight
-        weight = dequantize_weight(self._quantized_weight)
+        # Get weight in float32 for computation
+        if self._quantized_weight.is_quantized:
+            from mono_quant.core.quantizers import dequantize_weight
+            weight = dequantize_weight(self._quantized_weight)
+        else:
+            # FP16 path: cast to float32 for embedding lookup
+            weight = self._quantized_weight.float()
 
         # Standard embedding lookup
         return F.embedding(
@@ -157,18 +169,20 @@ class QuantizedEmbedding(nn.Module):
     @property
     def weight(self) -> Optional[torch.Tensor]:
         """
-        Return the dequantized weight (for compatibility).
+        Return the effective weight (for compatibility).
 
         This property provides compatibility with code that expects
         a weight attribute on Embedding modules.
 
         Returns:
-            Dequantized weight tensor, or None if not quantized yet.
+            Dequantized or cast weight tensor, or None if not quantized yet.
         """
         if self._quantized_weight is None:
             return None
-        from mono_quant.core.quantizers import dequantize_weight
-        return dequantize_weight(self._quantized_weight)
+        if self._quantized_weight.is_quantized:
+            from mono_quant.core.quantizers import dequantize_weight
+            return dequantize_weight(self._quantized_weight)
+        return self._quantized_weight.float()
 
     def extra_repr(self) -> str:
         """Return extra representation string."""
@@ -220,4 +234,4 @@ def quantize_embedding_module(
         )
 
     # Use the factory method to create QuantizedEmbedding
-    return QuantizedEmbedding.from_embedding(module, symmetric=symmetric)
+    return QuantizedEmbedding.from_embedding(module, dtype=dtype, symmetric=symmetric)
