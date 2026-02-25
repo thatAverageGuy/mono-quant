@@ -980,7 +980,7 @@ def _quantize_sequential_module(
     skipped: List[str],
     dtype: torch.dtype,
     symmetric: bool,
-    skip_set: set = set(),
+    skip_set: Optional[set] = None,
     parent_name: str = "",
 ) -> None:
     """
@@ -991,9 +991,12 @@ def _quantize_sequential_module(
         skipped: List to append skipped layer names to.
         dtype: Target quantization dtype.
         symmetric: Whether to use symmetric quantization.
-        skip_set: Set of layer names to skip.
+        skip_set: Set of layer names to skip. If None, no layers are skipped.
         parent_name: Parent module name for full path construction.
     """
+    if skip_set is None:
+        skip_set = set()
+
     # Local import to avoid circular dependency
     from mono_quant.modules.embedding import quantize_embedding_module
     from mono_quant.modules.linear import quantize_conv2d_module, quantize_linear_module
