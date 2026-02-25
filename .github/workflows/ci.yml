@@ -36,7 +36,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ -v || echo "No tests found yet - skipping"
+          pytest tests/ -v
 
       - name: Lint with ruff
         run: |
