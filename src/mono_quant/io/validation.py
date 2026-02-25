@@ -244,13 +244,19 @@ def _check_weight_ranges(model: nn.Module) -> bool:
             # Check dequantized values are reasonable
             if hasattr(param, 'dequantize'):
                 dequantized = param.dequantize()
-                # Check for NaN or Inf
+                # Check for NaN or Inf (catches scale/zero-point corruption)
                 if not torch.all(torch.isfinite(dequantized)):
                     return False
-                # Check for reasonable range (most weights should be within -10 to 10)
-                # This is a heuristic - extreme values may indicate quantization issues
-                if torch.any(torch.abs(dequantized) > 100):
-                    return False
+                # Check for quantization-induced range explosion (relative threshold).
+                # Flag if any value exceeds 10× the standard deviation from the mean —
+                # this catches corrupt scales without triggering on legitimately large
+                # weights (e.g. LLM embeddings, final projection layers).
+                std = dequantized.std().item()
+                if std > 0:
+                    mean = dequantized.mean().item()
+                    max_dev = (dequantized - mean).abs().max().item()
+                    if max_dev > 10 * std:
+                        return False
 
         elif param.dtype == torch.float16:
             # Check for finite values (no NaN or Inf)
