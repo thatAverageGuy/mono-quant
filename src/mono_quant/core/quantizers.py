@@ -1155,18 +1155,12 @@ def quantize_weight_int4(
 
     # Fallback to per-channel INT8 for layers smaller than group_size
     if dim_size < group_size:
-        logger.warning(
-            f"Layer dimension {dim_size} is smaller than group_size {group_size}. "
-            f"Falling back to per-channel INT8 quantization."
+        raise RuntimeError(
+            f"INT4 quantization requires group_size <= layer dimension, but "
+            f"layer dimension ({dim_size}) < group_size ({group_size}). "
+            "The previous fallback to INT8 returned corrupt packed/zero-point data. "
+            "Use INT8 quantization for this layer, or reduce group_size."
         )
-        # Use INT8 quantization for small layers
-        q_weight = quantize_weight_int8(weight, symmetric=symmetric, axis=axis)
-        # Extract scales and zero_points from the quantized tensor
-        scale = q_weight.q_per_channel_scales()
-        zero_point = q_weight.int_repr()  # This gives us the int values
-        # For INT8 fallback, we need to return compatible format
-        # Return the int8 representation directly (already packed in a sense)
-        return zero_point.to(torch.int8), scale, torch.zeros_like(scale).to(torch.int32)
 
     # Calculate group-wise scale and zero-point
     scales, zero_points = calculate_scale_zp_groupwise(
