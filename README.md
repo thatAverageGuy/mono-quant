@@ -18,6 +18,7 @@ Mono Quant is a simple, reliable model quantization package for PyTorch with min
 - **Multiple Modes** - INT8, INT4, and FP16 quantization
 - **Flexible Calibration** - Dynamic (no data) or static (with calibration data)
 - **Robust Validation** - SQNR metrics, size comparison, and accuracy warnings
+- **ONNX Export** - Export quantized models to ONNX with QDQ nodes (optional)
 - **Dual Interface** - Python API for automation, CLI for CI/CD
 - **Build-Phase Only** - Quantize during build, deploy lightweight models
 
@@ -25,6 +26,9 @@ Mono Quant is a simple, reliable model quantization package for PyTorch with min
 
 ```bash
 pip install mono-quant
+
+# With ONNX export support
+pip install mono-quant[onnx]
 ```
 
 ### Requirements
@@ -92,6 +96,27 @@ result = quantize(
     calibration_data=calibration_data,
     group_size=128  # Default
 )
+```
+
+### ONNX Export (Requires `pip install mono-quant[onnx]`)
+
+```python
+from mono_quant import quantize, export_to_onnx
+
+# Quantize first
+result = quantize(model, bits=8, dynamic=True)
+q_model = result.model
+
+# Export to ONNX with QDQ nodes
+export_to_onnx(q_model, "model.onnx")
+
+# With validation
+export_to_onnx(q_model, "model.onnx", opset=14, validate="load")
+```
+
+```bash
+# CLI
+monoquant export --model q_model.pt --output model.onnx --validate load
 ```
 
 ## Documentation

@@ -89,16 +89,21 @@ from mono_quant.io.validation import (
 )
 
 def export_to_onnx(model, path, **kwargs):
-    """ONNX export is not yet implemented.
+    """Export a quantized model to ONNX format with QDQ nodes.
 
-    Planned for a future release. Track progress at:
-    docs/dev/tasks/T-030/DETAIL.md
+    Requires optional ONNX dependencies:
+        pip install mono-quant[onnx]
+
+    Args:
+        model: Quantized nn.Module to export.
+        path: Output path for the .onnx file.
+        **kwargs: opset, dummy_input, validate — see mono_quant.export for details.
+
+    Raises:
+        ImportError: If onnx or onnxruntime is not installed.
     """
-    raise NotImplementedError(
-        "export_to_onnx() is not yet implemented. "
-        "It is planned for a future release. "
-        "See docs/dev/tasks/T-030/DETAIL.md for status."
-    )
+    from mono_quant.export import export_to_onnx as _export
+    return _export(model, path, **kwargs)
 
 
 __all__ = [

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `export_to_onnx(model, path, opset, dummy_input, validate)` — ONNX export with
+  QDQ nodes for INT8 models; INT4 layers export as FP32 with a warning (T-034–T-036)
+- `monoquant export` CLI command — `--model`, `--output`, `--opset`, `--validate`
+  options; requires `pip install mono-quant[onnx]` (T-037)
+- `[project.optional-dependencies] onnx` in `pyproject.toml` — `onnx>=1.14`,
+  `onnxruntime>=1.16` (T-034)
+- `mono_quant.export` package — `BaseExporter` ABC, `ValidationLevel` enum,
+  `validate_onnx_model()`, `ONNXExporter`, `collect_quantization_params()`,
+  `insert_qdq_nodes()` (T-034–T-036)
+
 ### Fixed
 - `result.save()` no longer crashes with `AttributeError` — dual `QuantizationInfo`
   class collision resolved; `_build_metadata` now accepts `core.quantizers.QuantizationInfo`

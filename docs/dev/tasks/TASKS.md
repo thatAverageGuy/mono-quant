@@ -56,19 +56,16 @@
 
 ---
 
-## Pending (v2.0 Phase 5 — ONNX Export) ⚠ Audit: Not Implemented
+## Completed (v2.0 Phase 5 — ONNX Export)
 
-> **Status Correction (2026-02-25):** T-014–T-017 were marked DONE in original
-> planning but `src/mono_quant/export/` does not exist. These tasks are NOT
-> complete. See T-030 for the correction task. Implementation tasks will be
-> assigned new IDs (T-034+) to preserve existing IMPL_LOG history.
+> T-014–T-017 were phantom entries (see T-030). Actual implementation used IDs T-034–T-037.
 
 | ID | Summary | Status | Depends On | Detail |
 |----|---------|--------|------------|--------|
-| T-014 | Export infrastructure — BaseExporter, lazy imports, validation framework | TODO ⚠ | T-030 | docs/dev/tasks/T-014/ |
-| T-015 | ONNX QDQ node insertion utilities | TODO ⚠ | T-014 | docs/dev/tasks/T-015/ |
-| T-016 | Opset version support and quantization parameter preservation | TODO ⚠ | T-015 | docs/dev/tasks/T-016/ |
-| T-017 | CLI export command, error handling, validation testing | TODO ⚠ | T-016 | docs/dev/tasks/T-017/ |
+| T-034 | Export infrastructure — BaseExporter, lazy imports, validation, pyproject extras | DONE | T-030 | docs/dev/tasks/T-034/ |
+| T-035 | ONNX QDQ node insertion — collect_quantization_params, insert_qdq_nodes | DONE | T-034 | docs/dev/tasks/T-035/ |
+| T-036 | ONNXExporter — full 7-step pipeline, dummy input inference, metadata | DONE | T-035 | docs/dev/tasks/T-036/ |
+| T-037 | CLI export command + 7 tests (INT8, validate, QDQ, opset, INT4 warn, ImportError) | DONE | T-036 | docs/dev/tasks/T-037/ |
 
 ---
 
@@ -140,7 +137,7 @@
 | Audit fixes (critical/high) | v1.2 | BF-002 to BF-009, T-030, T-033 | ✅ Done |
 | Audit fixes (medium/calibration) | v1.2 | BF-005, BF-013, CL-001 | ✅ Done |
 | Calibration & observer fixes | v1.2 | T-031, T-032 | ✅ Done |
-| 5 — ONNX Export | v2.0 | T-014 to T-017 | ⚠ NOT DONE |
+| 5 — ONNX Export | v2.0 | T-034 to T-037 (T-014–T-017 were phantom) | ✅ Done |
 | 6 — GPTQ/AWQ Export | v2.0 | T-018 to T-021 | ☐ TODO |
 | 7 — GGUF Binary Export | v2.0 | T-022 to T-025 | ☐ TODO |
 | 8 — Unified Export API | v2.0 | T-026 to T-029 | ☐ TODO |

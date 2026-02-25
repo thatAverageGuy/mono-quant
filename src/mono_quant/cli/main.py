@@ -32,6 +32,7 @@ import click as _click
 from .commands import (
     calibrate_cmd,
     compare_cmd,
+    export_cmd,
     info_cmd,
     quantize_cmd,
     validate_cmd,
@@ -78,6 +79,7 @@ cli.add_command(validate_cmd)
 cli.add_command(info_cmd)
 cli.add_command(compare_cmd)
 cli.add_command(calibrate_cmd)
+cli.add_command(export_cmd)
 
 
 __all__ = ["cli"]

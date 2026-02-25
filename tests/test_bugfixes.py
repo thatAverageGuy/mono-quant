@@ -10,23 +10,29 @@ import torch.nn.functional as F
 
 
 # ---------------------------------------------------------------------------
-# T-030: export_to_onnx stub raises NotImplementedError
+# T-034: export_to_onnx is implemented and exported
 # ---------------------------------------------------------------------------
 
-def test_export_to_onnx_raises_not_implemented():
-    """T-030: export_to_onnx must raise NotImplementedError, not AttributeError."""
+def test_export_to_onnx_is_callable():
+    """T-034: export_to_onnx is exported from mono_quant and callable."""
     import mono_quant
 
     assert hasattr(mono_quant, "export_to_onnx"), "export_to_onnx must be exported"
-
-    model = nn.Linear(4, 4)
+    assert callable(mono_quant.export_to_onnx), "export_to_onnx must be callable"
+    # When onnx is not installed it raises ImportError with a helpful message,
+    # not NotImplementedError or AttributeError.
     try:
-        mono_quant.export_to_onnx(model, "dummy.onnx")
-        assert False, "Should have raised NotImplementedError"
-    except NotImplementedError:
-        pass  # expected
-    except AttributeError as e:
-        assert False, f"Got AttributeError instead of NotImplementedError: {e}"
+        import onnx  # noqa: F401
+        onnx_available = True
+    except ImportError:
+        onnx_available = False
+
+    if not onnx_available:
+        try:
+            mono_quant.export_to_onnx(nn.Linear(4, 4), "dummy.onnx")
+            assert False, "Should have raised ImportError when onnx is missing"
+        except ImportError as e:
+            assert "pip install mono-quant[onnx]" in str(e)
 
 
 # ---------------------------------------------------------------------------

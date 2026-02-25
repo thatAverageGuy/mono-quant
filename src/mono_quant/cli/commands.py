@@ -459,6 +459,78 @@ def calibrate_cmd(model_path: str, data_path: str, output: Optional[str], sample
     raise SystemExit(1)
 
 
+# export_cmd - Export a quantized model to ONNX format
+@_click.command(name="export")
+@_click.option(
+    "--model",
+    "-m",
+    "model_path",
+    required=True,
+    type=_click.Path(exists=True),
+    help="Path to quantized model file (.pt saved with torch.save)",
+)
+@_click.option(
+    "--output",
+    "-o",
+    "output_path",
+    required=True,
+    type=_click.Path(),
+    help="Output ONNX file path (.onnx)",
+)
+@_click.option(
+    "--opset",
+    default=14,
+    type=int,
+    show_default=True,
+    help="ONNX opset version",
+)
+@_click.option(
+    "--validate",
+    type=_click.Choice(["none", "load", "full"]),
+    default="none",
+    show_default=True,
+    help="Validation level after export",
+)
+@_click.pass_obj
+def export_cmd(
+    obj: dict,
+    model_path: str,
+    output_path: str,
+    opset: int,
+    validate: str,
+) -> None:
+    """Export a quantized model to ONNX format with QDQ nodes.
+
+    The model file must be saved with torch.save(model, path), not save_model().
+
+    Requires ONNX dependencies:
+        pip install mono-quant[onnx]
+
+    Examples:
+        # Basic export
+        monoquant export --model q_model.pt --output model.onnx
+
+        # Export with opset 17 and load validation
+        monoquant export -m q_model.pt -o model.onnx --opset 17 --validate load
+    """
+    from mono_quant import export_to_onnx
+
+    _click.echo(f"Loading model: {model_path}")
+    try:
+        model = torch.load(model_path, weights_only=False)
+    except Exception as e:
+        raise _click.ClickException(f"Failed to load model: {e}")
+
+    _click.echo(f"Exporting to ONNX: {output_path}")
+    try:
+        export_to_onnx(model, output_path, opset=opset, validate=validate)
+        _click.echo(f"Export complete: {output_path}")
+    except ImportError as e:
+        raise _click.ClickException(str(e))
+    except Exception as e:
+        raise _click.ClickException(f"Export failed: {e}")
+
+
 __all__ = [
     "quantize_cmd",
     "validate_cmd",
