@@ -16,3 +16,9 @@ DONE — 2026-02-04 | Milestone: v2.0/Phase 5
 - Zero-point dtype: symmetric/all-zero → INT8; asymmetric with min≥0 → UINT8
 - Per-channel DequantizeLinear with axis=0 for weight quantization
 - Scale initializer stored as FLOAT (not FLOAT16) for runtime compatibility
+---
+
+## Audit Correction (2026-02-25)
+Marked DONE in original planning but implementation was never completed.
+src/mono_quant/export/ does not exist. Status corrected by T-030.
+Actual ONNX implementation will be tracked under T-034+.

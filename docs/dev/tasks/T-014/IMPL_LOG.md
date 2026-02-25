@@ -15,3 +15,9 @@ DONE — 2026-02-04 | Milestone: v2.0/Phase 5
 | src/mono_quant/export/common/__init__.py | Created | package marker |
 | src/mono_quant/export/common/validators.py | Created | validation framework (563 lines) |
 | pyproject.toml | Modified | [onnx] optional deps group |
+---
+
+## Audit Correction (2026-02-25)
+Marked DONE in original planning but implementation was never completed.
+src/mono_quant/export/ does not exist. Status corrected by T-030.
+Actual ONNX implementation will be tracked under T-034+.

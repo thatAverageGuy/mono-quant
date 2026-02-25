@@ -21,3 +21,9 @@ DONE — 2026-02-04 | Milestone: v2.0/Phase 5 | End of Phase 5.
 ## Phase 5 Verification
 14/14 must-haves verified. All ONNX-01 through ONNX-06 satisfied.
 Total Phase 5 code: 3,333 lines across 7 files.
+---
+
+## Audit Correction (2026-02-25)
+Marked DONE in original planning but implementation was never completed.
+src/mono_quant/export/ does not exist. Status corrected by T-030.
+Actual ONNX implementation will be tracked under T-034+.

@@ -88,11 +88,25 @@ from mono_quant.io.validation import (
     validate_quantization,
 )
 
+def export_to_onnx(model, path, **kwargs):
+    """ONNX export is not yet implemented.
+
+    Planned for a future release. Track progress at:
+    docs/dev/tasks/T-030/DETAIL.md
+    """
+    raise NotImplementedError(
+        "export_to_onnx() is not yet implemented. "
+        "It is planned for a future release. "
+        "See docs/dev/tasks/T-030/DETAIL.md for status."
+    )
+
+
 __all__ = [
     # Version
     "__version__",
     # Unified API
     "quantize",
+    "export_to_onnx",
     # Configuration
     "QuantizationConfig",
     # Quantization functions
