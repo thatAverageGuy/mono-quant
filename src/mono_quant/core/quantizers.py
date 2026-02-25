@@ -370,7 +370,7 @@ def static_quantize(
     skip_layer_types: Optional[LayerTypes] = None,
     skip_layer_names: Optional[List[str]] = None,
     skip_param_threshold: int = 0,
-    group_size: int = 128,
+    group_size: int = 0,
     accuracy_warning: str = "warn",
     sqnr_warning_threshold: float = 20.0,
     sqnr_error_threshold: float = 10.0,
@@ -685,11 +685,12 @@ def static_quantize(
 
     # Run accuracy warning check
     from mono_quant.io.validation import check_accuracy_warnings
+    # all_layers_quantized_warning only makes sense for INT4 (group_size > 0)
     info = check_accuracy_warnings(
         info,
         sqnr_warning_threshold=sqnr_warning_threshold,
         sqnr_error_threshold=sqnr_error_threshold,
-        all_layers_quantized_warning=True,
+        all_layers_quantized_warning=(group_size > 0),
         low_calibration_warning=True,
         on_failure=accuracy_warning,
     )
