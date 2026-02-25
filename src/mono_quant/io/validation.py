@@ -22,6 +22,7 @@ Example:
     >>> print(f"SQNR: {result.sqnr_db:.2f} dB")
 """
 
+import copy
 import os
 import tempfile
 from dataclasses import dataclass, field
@@ -289,8 +290,9 @@ def _test_load_run(quantized: nn.Module) -> bool:
         # Step 2: Load the state dict back
         loaded = load_model(temp_path)
 
-        # Step 3: Load into model
-        quantized.load_state_dict(loaded)
+        # Step 3: Load into a copy — do NOT mutate the model under test
+        test_model = copy.deepcopy(quantized)
+        test_model.load_state_dict(loaded)
 
         # Step 4: Run forward pass
         # Determine input shape from first linear layer
@@ -306,7 +308,7 @@ def _test_load_run(quantized: nn.Module) -> bool:
                 break
 
         if test_input is not None:
-            _ = quantized(test_input)
+            _ = test_model(test_input)
 
         # All tests passed
         return True
