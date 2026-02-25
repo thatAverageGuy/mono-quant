@@ -40,7 +40,6 @@ from mono_quant.core.quantizers import (
     quantize_weight_int8,
     revert_to_standard_modules,
     static_quantize,
-    test_models_from_any_source,
 )
 from mono_quant.core.schemes import (
     AsymmetricScheme,
@@ -74,9 +73,4 @@ __all__ = [
     "MinMaxObserver",
     "MovingAverageMinMaxObserver",
     "HistogramObserver",
-    # Layer selection (internal but exported for advanced use)
-    "_select_layers_by_type",
-    "_select_layers_by_name",
-    # Testing
-    "test_models_from_any_source",
 ]

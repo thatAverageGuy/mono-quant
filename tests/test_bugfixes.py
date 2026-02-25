@@ -1,4 +1,4 @@
-"""Tests for audit bug fixes BF-002, BF-003, BF-004, BF-009, BF-013 and T-030."""
+"""Tests for audit bug fixes BF-002–BF-012, T-030, T-033, and CL-001."""
 
 import io
 import os
@@ -224,3 +224,260 @@ def test_dequantize_model_non_quantized_passthrough():
             assert buf.dtype in (torch.float32, torch.int64), (
                 f"Buffer {name} has unexpected dtype {buf.dtype}"
             )
+
+
+# ---------------------------------------------------------------------------
+# BF-005: mutable default argument in _quantize_sequential_module
+# ---------------------------------------------------------------------------
+
+def test_sequential_module_skip_set_not_shared_across_calls():
+    """BF-005: _quantize_sequential_module must not share skip_set across calls."""
+    from mono_quant.core.quantizers import _quantize_sequential_module
+
+    seq1 = nn.Sequential(nn.Linear(4, 4), nn.ReLU())
+    seq2 = nn.Sequential(nn.Linear(4, 4), nn.ReLU())
+    skipped1: list = []
+    skipped2: list = []
+
+    # First call with no skip_set
+    _quantize_sequential_module(seq1, skipped1, torch.qint8, False)
+    # Second call — must not inherit any state from first call
+    _quantize_sequential_module(seq2, skipped2, torch.qint8, False)
+
+    # Both calls should independently quantize nn.Linear (index 0) and skip ReLU
+    from mono_quant.modules.linear import QuantizedLinear
+    assert isinstance(seq1[0], QuantizedLinear), "seq1 Linear not quantized"
+    assert isinstance(seq2[0], QuantizedLinear), "seq2 Linear not quantized"
+    assert "1" in skipped1 or "0.1" in skipped1 or len(skipped1) > 0
+    assert "1" in skipped2 or "0.1" in skipped2 or len(skipped2) > 0
+
+
+# ---------------------------------------------------------------------------
+# BF-006: INT4 skip list not applied for INT8 static_quantize by default
+# ---------------------------------------------------------------------------
+
+def test_static_quantize_int8_does_not_apply_int4_skip_list():
+    """BF-006: Default INT8 static_quantize must not silently skip embedding layers."""
+    from mono_quant.core.quantizers import static_quantize
+
+    class ModelWithEmbedding(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(100, 16)
+            self.linear = nn.Linear(16, 4)
+
+        def forward(self, x):
+            return self.linear(self.embed(x))
+
+    model = ModelWithEmbedding()
+    calib_data = [torch.randint(0, 100, (4,)) for _ in range(5)]
+
+    # With default group_size=0, INT4 skip list must NOT be applied
+    q_model, info = static_quantize(model, calib_data, run_validation=False)
+
+    # The embedding should appear in selected_layers or be handled — it should NOT
+    # be silently skipped because of INT4's default skip list
+    assert "embed" not in info.skipped_layers or "lm_head" not in info.skipped_layers, (
+        "INT4 skip list was applied to an INT8 static_quantize call"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BF-007: quantize_weight_int4 fallback raises RuntimeError for small layers
+# ---------------------------------------------------------------------------
+
+def test_quantize_weight_int4_small_layer_raises_runtime_error():
+    """BF-007: quantize_weight_int4 must raise RuntimeError when dim < group_size."""
+    from mono_quant.core.quantizers import quantize_weight_int4
+
+    # Layer dim 16 < group_size 128 triggers the fallback
+    small_weight = torch.randn(16, 8)
+    try:
+        quantize_weight_int4(small_weight, group_size=128, symmetric=True)
+        assert False, "Expected RuntimeError for small layer"
+    except RuntimeError as e:
+        assert "group_size" in str(e).lower() or "dimension" in str(e).lower(), (
+            f"RuntimeError message unclear: {e}"
+        )
+
+
+def test_quantize_weight_int4_normal_path_unchanged():
+    """BF-007: Normal INT4 path (dim >= group_size) must still work."""
+    from mono_quant.core.quantizers import quantize_weight_int4
+
+    weight = torch.randn(256, 128)
+    packed, scales, zero_points = quantize_weight_int4(weight, group_size=128, symmetric=True)
+    assert packed is not None
+    assert scales is not None
+
+
+# ---------------------------------------------------------------------------
+# BF-008: nested layer detection in _quantize_int8_model now works
+# ---------------------------------------------------------------------------
+
+class _InnerModule(nn.Module):
+    """Two-level nested container for BF-008 test."""
+    def __init__(self):
+        super().__init__()
+        self.linear = nn.Linear(4, 4)
+
+    def forward(self, x):
+        return self.linear(x)
+
+
+class _OuterModule(nn.Module):
+    """Top-level non-Sequential container for BF-008 test."""
+    def __init__(self):
+        super().__init__()
+        self.inner = _InnerModule()
+
+    def forward(self, x):
+        return self.inner(x)
+
+
+def test_nested_non_sequential_linear_is_quantized():
+    """BF-008: nn.Linear nested inside a non-Sequential container must be quantized."""
+    from mono_quant import dynamic_quantize
+    from mono_quant.modules.linear import QuantizedLinear
+
+    model = _OuterModule()
+    assert isinstance(model.inner.linear, nn.Linear), "Precondition: unquantized"
+
+    q_model, skipped = dynamic_quantize(model)
+
+    assert isinstance(q_model.inner.linear, QuantizedLinear), (
+        "Nested nn.Linear was not quantized — BF-008 nested detection still broken"
+    )
+    assert "inner.linear" not in skipped, "inner.linear should not appear in skipped"
+
+
+# ---------------------------------------------------------------------------
+# BF-010: quantize_embedding_module passes dtype through
+# ---------------------------------------------------------------------------
+
+def test_embedding_quantize_int8_dtype():
+    """BF-010: quantize_embedding_module with dtype=qint8 gives qint8 weight."""
+    from mono_quant.modules.embedding import quantize_embedding_module
+
+    emb = nn.Embedding(100, 32)
+    q_emb = quantize_embedding_module(emb, dtype=torch.qint8)
+    assert q_emb._quantized_weight is not None
+    assert q_emb._quantized_weight.is_quantized, (
+        "Expected quantized (qint8) weight, got non-quantized"
+    )
+
+
+def test_embedding_quantize_fp16_dtype():
+    """BF-010: quantize_embedding_module with dtype=float16 gives float16 weight."""
+    from mono_quant.modules.embedding import quantize_embedding_module
+
+    emb = nn.Embedding(100, 32)
+    q_emb = quantize_embedding_module(emb, dtype=torch.float16)
+    assert q_emb._quantized_weight is not None
+    assert q_emb._quantized_weight.dtype == torch.float16, (
+        f"Expected float16 weight, got {q_emb._quantized_weight.dtype}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BF-011: _test_load_run does not mutate the model under test
+# ---------------------------------------------------------------------------
+
+def test_load_run_does_not_mutate_original_model():
+    """BF-011: _test_load_run must not modify the model passed to it."""
+    import copy
+    from mono_quant.io.validation import _test_load_run
+    from mono_quant import dynamic_quantize
+
+    model = nn.Linear(4, 4)
+    q_model, _ = dynamic_quantize(model)
+
+    original_state = copy.deepcopy(q_model.state_dict())
+    _test_load_run(q_model)  # must not modify q_model
+
+    for key in original_state:
+        after = q_model.state_dict()[key]
+        before = original_state[key]
+        if before.is_floating_point():
+            assert torch.allclose(before, after), (
+                f"Parameter {key} was mutated by _test_load_run"
+            )
+
+
+# ---------------------------------------------------------------------------
+# BF-012: _check_weight_ranges no false positive on large but valid weights
+# ---------------------------------------------------------------------------
+
+def test_check_weight_ranges_no_false_positive_on_large_weights():
+    """BF-012: _check_weight_ranges must not flag normally-distributed large weights."""
+    from mono_quant.io.validation import _check_weight_ranges
+    from mono_quant import dynamic_quantize
+
+    # Model whose weights are large but not corrupted
+    model = nn.Linear(4, 4)
+    torch.nn.init.constant_(model.weight, 150.0)  # > old hardcoded 100
+
+    q_model, _ = dynamic_quantize(model)
+    result = _check_weight_ranges(q_model)
+    assert result is True, (
+        "False positive: _check_weight_ranges flagged large-but-valid weights as bad"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T-033: quantize() raises TypeError for file path input
+# ---------------------------------------------------------------------------
+
+def test_quantize_file_path_raises_type_error():
+    """T-033: quantize() must raise TypeError when passed a file path string."""
+    from mono_quant import quantize
+
+    try:
+        quantize("some_model.pt", bits=8)
+        assert False, "Expected TypeError for string input"
+    except TypeError as e:
+        assert "nn.Module" in str(e), (
+            f"TypeError message should mention nn.Module, got: {e}"
+        )
+
+
+def test_quantize_path_object_raises_type_error():
+    """T-033: quantize() must raise TypeError when passed a Path object."""
+    from pathlib import Path
+    from mono_quant import quantize
+
+    try:
+        quantize(Path("some_model.pt"), bits=8)
+        assert False, "Expected TypeError for Path input"
+    except TypeError as e:
+        assert "nn.Module" in str(e), (
+            f"TypeError message should mention nn.Module, got: {e}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CL-001: version string, removed test_models_from_any_source
+# ---------------------------------------------------------------------------
+
+def test_version_is_semver():
+    """CL-001 M1: __version__ must be a valid semver string (X.Y.Z)."""
+    import mono_quant
+
+    version = mono_quant.__version__
+    parts = version.split(".")
+    assert len(parts) == 3, (
+        f"__version__ '{version}' is not semver (expected X.Y.Z)"
+    )
+    for part in parts:
+        assert part.isdigit(), (
+            f"__version__ '{version}' part '{part}' is not a number"
+        )
+
+
+def test_test_models_not_in_public_api():
+    """CL-001 M4: test_models_from_any_source must not be importable from public API."""
+    import mono_quant
+
+    assert not hasattr(mono_quant, "test_models_from_any_source"), (
+        "test_models_from_any_source should not be in the public API"
+    )

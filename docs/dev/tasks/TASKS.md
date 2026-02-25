@@ -24,8 +24,8 @@
 | BF-002 | Fix dual QuantizationInfo — result.save() always crashes with AttributeError | C3 | DONE | — | docs/dev/tasks/BF-002/ |
 | BF-003 | Fix INT4 symmetric formula — spurious -8 shift inverts all weights | C2 | DONE | — | docs/dev/tasks/BF-003/ |
 | BF-004 | Fix CLI Context.exit() called as class method — TypeError at runtime | C10 | DONE | — | docs/dev/tasks/BF-004/ |
-| BF-007 | Fix quantize_weight_int4 fallback — returns wrong zero_points and wrong packing | C7 | TODO | — | docs/dev/tasks/BF-007/ |
-| BF-008 | Fix _quantize_int8_model nested layer detection — always False, dead code | C6 | TODO | — | docs/dev/tasks/BF-008/ |
+| BF-007 | Fix quantize_weight_int4 fallback — returns wrong zero_points and wrong packing | C7 | DONE | — | docs/dev/tasks/BF-007/ |
+| BF-008 | Fix _quantize_int8_model nested layer detection — always False, dead code | C6 | DONE | — | docs/dev/tasks/BF-008/ |
 | BF-009 | Fix dequantize_model crash on qint8 buffers — .to() can't cast qint8 | C8 | DONE | — | docs/dev/tasks/BF-009/ |
 | T-030 | Correct ONNX export phantom — T-014–T-017 falsely marked DONE, no code exists | C1 | DONE | — | docs/dev/tasks/T-030/ |
 
@@ -33,19 +33,19 @@
 
 | ID | Summary | Severity | Status | Depends On | Detail |
 |----|---------|----------|--------|------------|--------|
-| BF-006 | Fix INT4 default skip list injected into all INT8 static_quantize calls | H2 | TODO | — | docs/dev/tasks/BF-006/ |
-| BF-010 | Fix quantize_embedding_module dropping dtype parameter | H5 | TODO | — | docs/dev/tasks/BF-010/ |
-| BF-011 | Fix _test_load_run mutating the model under test | H6 | TODO | — | docs/dev/tasks/BF-011/ |
-| BF-012 | Fix hardcoded weight range threshold 100 — false failures on real models | H4 | TODO | — | docs/dev/tasks/BF-012/ |
+| BF-006 | Fix INT4 default skip list injected into all INT8 static_quantize calls | H2 | DONE | — | docs/dev/tasks/BF-006/ |
+| BF-010 | Fix quantize_embedding_module dropping dtype parameter | H5 | DONE | — | docs/dev/tasks/BF-010/ |
+| BF-011 | Fix _test_load_run mutating the model under test | H6 | DONE | — | docs/dev/tasks/BF-011/ |
+| BF-012 | Fix hardcoded weight range threshold 100 — false failures on real models | H4 | DONE | — | docs/dev/tasks/BF-012/ |
 | BF-013 | Fix CI silently swallowing test failures (|| echo fallback) | M5 | DONE | — | docs/dev/tasks/BF-013/ |
-| T-033 | Fix file path model input in quantize() — always crashes, feature non-functional | H1 | TODO | — | docs/dev/tasks/T-033/ |
+| T-033 | Fix file path model input in quantize() — always crashes, feature non-functional | H1 | DONE | — | docs/dev/tasks/T-033/ |
 
 ### Medium Priority Bug Fixes
 
 | ID | Summary | Severity | Status | Depends On | Detail |
 |----|---------|----------|--------|------------|--------|
-| BF-005 | Fix mutable default argument skip_set=set() in _quantize_sequential_module | C9 | TODO | — | docs/dev/tasks/BF-005/ |
-| CL-001 | Code quality cleanup — version strings, __all__ exports, stale test code, observer docs | M1-M4,M6,M7 | TODO | — | docs/dev/tasks/CL-001/ |
+| BF-005 | Fix mutable default argument skip_set=set() in _quantize_sequential_module | C9 | DONE | — | docs/dev/tasks/BF-005/ |
+| CL-001 | Code quality cleanup — version strings, __all__ exports, stale test code, observer docs | M1-M4,M6,M7 | DONE | — | docs/dev/tasks/CL-001/ |
 
 ### Calibration & Observer Fixes (Required for correct static quantization)
 
@@ -137,8 +137,9 @@
 | 3 — Advanced Calibration & INT4 | v1.0 | T-009 to T-011 | ✅ Done |
 | 4 — User Interfaces | v1.0 | T-012 to T-013 | ✅ Done |
 | v1.1 bugfixes & features | v1.1 | BF-001 | ✅ Done |
-| Audit fixes (critical/high) | v1.2 | BF-002 to BF-009, T-030, T-033 | ☐ TODO |
-| Audit fixes (medium/calibration) | v1.2 | BF-005, BF-013, T-031, T-032, CL-001 | ☐ TODO |
+| Audit fixes (critical/high) | v1.2 | BF-002 to BF-009, T-030, T-033 | ✅ Done |
+| Audit fixes (medium/calibration) | v1.2 | BF-005, BF-013, CL-001 | ✅ Done |
+| Calibration & observer fixes | v1.2 | T-031, T-032 | ☐ TODO |
 | 5 — ONNX Export | v2.0 | T-014 to T-017 | ⚠ NOT DONE |
 | 6 — GPTQ/AWQ Export | v2.0 | T-018 to T-021 | ☐ TODO |
 | 7 — GGUF Binary Export | v2.0 | T-022 to T-025 | ☐ TODO |

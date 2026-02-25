@@ -15,17 +15,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shift from `quantize_weight_int4`; round-trip cosine similarity now > 0.9 (BF-003)
 - CLI `monoquant` commands no longer raise `TypeError` on error paths — replaced
   11 `_click.Context.exit(N)` class method calls with `raise SystemExit(N)` (BF-004)
+- `_quantize_sequential_module` no longer shares mutable default `skip_set` across
+  calls — changed default from `set()` to `None` sentinel (BF-005)
+- `DEFAULT_INT4_SKIP` no longer silently applied to every INT8 `static_quantize` call
+  — `group_size` default changed from 128 to 0; skip list only activates when
+  `group_size > 0` (BF-006)
+- `quantize_weight_int4` fallback for small layers now raises `RuntimeError` with a
+  clear message instead of silently returning corrupt INT8/INT4 mixed data (BF-007)
+- `_quantize_int8_model` now correctly quantizes `nn.Linear` layers nested inside
+  non-Sequential containers — removed always-False isinstance guard from nested
+  `named_modules()` loop (BF-008)
 - `dequantize_model()` no longer crashes with `RuntimeError` on models with
   `qint8` buffers — uses `.dequantize()` + `register_buffer()` correctly (BF-009)
+- `quantize_embedding_module` now respects `dtype` parameter — `dtype=torch.float16`
+  stores weights as FP16 instead of silently using INT8 (BF-010)
+- `_test_load_run` no longer mutates the model under test — uses `copy.deepcopy`
+  before loading the state_dict (BF-011)
+- `_check_weight_ranges` no longer raises false positives on legitimately large
+  weights (e.g. LLM embeddings > 100) — replaced hardcoded `> 100` threshold with
+  a relative 10-sigma outlier check (BF-012)
 - CI test step no longer silently passes on test failures — removed `|| echo` fallback
   from pytest invocation (BF-013)
 - `export_to_onnx()` is now accessible as a proper stub raising `NotImplementedError`
   instead of `AttributeError`; corrected T-014–T-017 phantom DONE status (T-030)
+- `quantize()` now raises `TypeError` with a helpful message when passed a file path
+  string or Path object, instead of crashing deep in `_prepare_model` (T-033)
+
+### Changed
+- `static_quantize` `group_size` parameter default changed from `128` to `0` —
+  avoids INT4 skip list being applied to all INT8 calls by default (BF-006)
+- Version bumped to `1.1.0` (semver compliant) from `1.1` (CL-001)
+- `safetensors` minimum version updated to `>=0.4` in pyproject.toml to match
+  the existing error message in `io/formats.py` (CL-001)
+- `all_layers_quantized_warning` in `static_quantize` is now only emitted when
+  `group_size > 0` (INT4 context) — eliminates spurious warning for INT8 (CL-001)
+
+### Removed
+- `test_models_from_any_source()` production stub removed from `core/quantizers.py`;
+  `_select_layers_by_type` and `_select_layers_by_name` removed from
+  `core.__all__` (CL-001)
 
 ### Added
 - `docs/dev/tasks/BF-002` through `BF-013`, `T-030` through `T-033`, `CL-001` —
   DETAIL.md files for all 17 audit findings (2026-02-25 correctness audit)
-- `tests/test_bugfixes.py` — 10 new tests covering all fixed code paths
+- `tests/test_bugfixes.py` — 28 tests covering all fixed code paths (10 original
+  + 18 new for BF-005 through BF-012, T-033, CL-001)
 
 ### Added
 - `docs/dev/` developer documentation structure (AX-001)
