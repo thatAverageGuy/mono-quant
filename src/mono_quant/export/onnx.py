@@ -1,6 +1,7 @@
 """ONNXExporter — orchestrates the full ONNX export flow."""
 
 import json
+import sys
 import tempfile
 import warnings
 from pathlib import Path
@@ -103,12 +104,31 @@ class ONNXExporter(BaseExporter):
         tmp_path = Path(tmp_file.name)
         tmp_file.close()
 
+        # Disable KV cache for HuggingFace models — DynamicCache is not a
+        # registered pytree type and blocks both TorchScript and dynamo tracing.
+        _use_cache_orig = None
+        if hasattr(fp32_model, "config") and hasattr(fp32_model.config, "use_cache"):
+            _use_cache_orig = fp32_model.config.use_cache
+            fp32_model.config.use_cache = False
+
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 if dynamo:
                     # FX/dynamo path — handles complex forward signatures
                     # (multi-input, optional kwargs, custom nn.Embedding subclasses)
+                    #
+                    # torch.onnx logs a checkmark emoji (✅) on success.
+                    # On Windows the default cp1252 console encoding raises
+                    # UnicodeEncodeError inside the success callback, BEFORE
+                    # the ONNX file is written to disk. Temporarily replace
+                    # unencodable chars in stdout/stderr to prevent this.
+                    _stdout_errors = getattr(sys.stdout, "errors", None)
+                    _stderr_errors = getattr(sys.stderr, "errors", None)
+                    if hasattr(sys.stdout, "reconfigure"):
+                        sys.stdout.reconfigure(errors="replace")
+                    if hasattr(sys.stderr, "reconfigure"):
+                        sys.stderr.reconfigure(errors="replace")
                     try:
                         torch.onnx.export(
                             fp32_model,
@@ -122,6 +142,11 @@ class ONNXExporter(BaseExporter):
                             "Hint: provide dummy_input matching your model's "
                             "forward() signature."
                         ) from e
+                    finally:
+                        if hasattr(sys.stdout, "reconfigure") and _stdout_errors:
+                            sys.stdout.reconfigure(errors=_stdout_errors)
+                        if hasattr(sys.stderr, "reconfigure") and _stderr_errors:
+                            sys.stderr.reconfigure(errors=_stderr_errors)
                 else:
                     # TorchScript path (default) — simpler models, opset control
                     try:
@@ -160,6 +185,8 @@ class ONNXExporter(BaseExporter):
 
         finally:
             tmp_path.unlink(missing_ok=True)
+            if _use_cache_orig is not None:
+                fp32_model.config.use_cache = _use_cache_orig
 
         # Step 9: Optional validation
         validate_onnx_model(path, level=ValidationLevel(validate))

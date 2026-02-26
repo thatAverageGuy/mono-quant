@@ -223,6 +223,62 @@ def test_export_onnx_dynamo_qdq_nodes_present(tmp_path: Path) -> None:
     assert "DequantizeLinear" in op_types, f"DequantizeLinear not found in dynamo graph. Ops: {op_types}"
 
 
+def test_export_onnx_hf_model_use_cache_restored(tmp_path: Path) -> None:
+    """BF-017: config.use_cache is restored after export — even on failure."""
+    from mono_quant.export.onnx import ONNXExporter
+    from types import SimpleNamespace
+
+    class FakeHFModel(nn.Module):
+        """Simulates a HuggingFace model with config.use_cache."""
+        def __init__(self):
+            super().__init__()
+            self.config = SimpleNamespace(use_cache=True)
+            self.fc = nn.Linear(8, 4)
+
+        def forward(self, x):
+            return self.fc(x)
+
+    model = FakeHFModel()
+    exporter = ONNXExporter()
+    out = tmp_path / "hf_model.onnx"
+
+    exporter.export(model, out)
+
+    # config.use_cache must be restored to original True after export
+    assert model.config.use_cache is True, (
+        "config.use_cache must be restored to True after successful export"
+    )
+
+
+def test_export_onnx_hf_model_use_cache_restored_on_failure(tmp_path: Path) -> None:
+    """BF-017: config.use_cache is restored even when tracing fails."""
+    from mono_quant.export.onnx import ONNXExporter
+    from types import SimpleNamespace
+
+    class FailingHFModel(nn.Module):
+        """Model that raises TypeError during forward — simulates complex HF model."""
+        def __init__(self):
+            super().__init__()
+            self.config = SimpleNamespace(use_cache=True)
+            self.embed = nn.Embedding(100, 32)
+
+        def forward(self, x):
+            raise TypeError("unexpected keyword argument")
+
+    model = FailingHFModel()
+    exporter = ONNXExporter()
+    out = tmp_path / "fail.onnx"
+    dummy = torch.zeros(1, 16, dtype=torch.long)
+
+    with pytest.raises(RuntimeError):
+        exporter.export(model, out, dummy_input=dummy)
+
+    # config.use_cache must be restored even on failure
+    assert model.config.use_cache is True, (
+        "config.use_cache must be restored to True even when export fails"
+    )
+
+
 def test_export_onnx_raises_without_onnx_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dynamo=True` path) (T-040)
 
 ### Fixed
+- ONNX export of HuggingFace transformer models (OPT, LLaMA, GPT-2, Mistral, etc.)
+  now works with `dynamo=True`; previously failed with `RuntimeError: Found
+  DynamicCache in output, which is not a known type` — fixed by temporarily setting
+  `model.config.use_cache = False` before tracing, restored after (BF-017)
+- `dynamo=True` export on Windows no longer crashes with `UnicodeEncodeError` from
+  torch.onnx's emoji success log (`✅`) crashing the CP1252 console before the file
+  is written — fixed by temporarily reconfiguring stdout/stderr to `errors='replace'`
+  around the dynamo call (BF-017)
 - `validate_onnx_model` full-level validation now infers numpy dtype from the ONNX
   graph's input spec (`inputs[0].type`) instead of hardcoding `float32`; transformer
   models with `int64` (token ID) inputs now pass full validation without onnxruntime

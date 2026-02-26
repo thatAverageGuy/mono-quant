@@ -12,6 +12,7 @@
 
 | ID | Summary | Completed | Detail |
 |----|---------|-----------|--------|
+| BF-017 | Fix HF transformer ONNX export — DynamicCache + Windows emoji encoding | 2026-02-27 | docs/dev/tasks/BF-017/ |
 | BF-016 | Fix validate_onnx_model full-level hardcodes float32 dummy | 2026-02-27 | docs/dev/tasks/BF-016/ |
 | T-040 | dynamo=True ONNX export path for transformer models | 2026-02-27 | docs/dev/tasks/T-040/ |
 | CL-002 | Version bump 1.1.0 → 2.0.0 before release | 2026-02-27 | docs/dev/tasks/CL-002/ |
@@ -111,6 +112,7 @@
 
 | ID | Summary | Status | Depends On | Detail |
 |----|---------|--------|------------|--------|
+| T-041 | Fix QDQ node insertion for dynamo-exported ONNX graphs | TODO | T-040, BF-017 | docs/dev/tasks/T-041/ |
 | T-038 | Calibration-based conversion (result.convert with calibration_data) | TODO | T-029 | docs/dev/tasks/T-038/ |
 
 ---

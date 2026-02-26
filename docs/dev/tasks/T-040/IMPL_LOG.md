@@ -87,6 +87,10 @@ ignores it when `dynamo=True` and uses its own default.
   QuantizedEmbedding weight becomes a plain embedding initializer whose name doesn't
   match the QDQ inserter's `fc.weight` lookup. The warning is benign; the test only
   checks file creation.
+- Manual test A2 (OPT-125m) confirmed QDQ nodes are NOT inserted for complex nested
+  models via dynamo — dynamo uses different initializer naming than TorchScript for
+  deeply nested modules. ONNX is valid FP32, no INT8 inference benefit. Tracked as
+  T-041 for post-v2.0 fix.
 
 ---
 
