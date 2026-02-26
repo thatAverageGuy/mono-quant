@@ -49,11 +49,20 @@ def validate_export_pre(
     if not isinstance(model, nn.Module):
         return findings  # type error handled by orchestrator
 
-    # Check 1: model has at least one quantized layer
-    quantized_dtypes = {torch.qint8, torch.quint8, torch.float16}
-    has_quantized = any(
-        p.dtype in quantized_dtypes
-        for p in model.parameters()
+    # Check 1: model has at least one quantized layer.
+    # Two valid cases:
+    #   a) INT8/INT4: model contains QuantizedLinear/QuantizedConv2d/etc. instances.
+    #      (QuantizedLinear stores its weight as a plain tensor attribute, NOT as
+    #      nn.Parameter, so checking parameter dtypes would always return False.)
+    #   b) FP16: all parameters were cast to float16 in-place; no wrapper modules used.
+    from mono_quant.modules.linear import (
+        QuantizedLinear, QuantizedConv2d, QuantizedLinearInt4,
+    )
+    from mono_quant.modules.embedding import QuantizedEmbedding
+    _QUANTIZED_TYPES = (QuantizedLinear, QuantizedConv2d, QuantizedLinearInt4, QuantizedEmbedding)
+    has_quantized = (
+        any(isinstance(m, _QUANTIZED_TYPES) for m in model.modules())
+        or any(p.dtype == torch.float16 for p in model.parameters())
     )
     if not has_quantized:
         findings.append(ExportWarning(

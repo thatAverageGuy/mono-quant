@@ -200,9 +200,22 @@ def quantize(
                 **kwargs
             )
 
+            # Collect which layers were actually quantized by inspecting q_model
+            from mono_quant.modules.linear import (
+                QuantizedLinear, QuantizedConv2d, QuantizedLinearInt4,
+            )
+            from mono_quant.modules.embedding import QuantizedEmbedding
+            _QUANTIZED_TYPES = (
+                QuantizedLinear, QuantizedConv2d, QuantizedLinearInt4, QuantizedEmbedding
+            )
+            selected_layers = [
+                name for name, m in q_model.named_modules()
+                if isinstance(m, _QUANTIZED_TYPES)
+            ]
+
             # Create QuantizationInfo for dynamic quantization
             info = QuantizationInfo(
-                selected_layers=[],  # Dynamic doesn't track selected layers
+                selected_layers=selected_layers,
                 skipped_layers=skipped,
                 calibration_samples_used=0,
                 dtype=dtype,

@@ -110,6 +110,66 @@ def test_export_onnx_int4_warning(tmp_path: Path) -> None:
     )
 
 
+def test_infer_dummy_input_embedding_model_returns_long() -> None:
+    """BF-014/Bug3a: _infer_dummy_input returns LongTensor when model has Embedding first."""
+    from mono_quant.export.onnx import ONNXExporter
+
+    class EmbeddingFirst(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(100, 32)
+            self.fc = nn.Linear(32, 10)
+
+        def forward(self, x):
+            return self.fc(self.embed(x))
+
+    dummy = ONNXExporter()._infer_dummy_input(EmbeddingFirst())
+    assert dummy.dtype == torch.long, (
+        f"Expected torch.long for embedding model, got {dummy.dtype}"
+    )
+
+
+def test_onnx_export_tracing_error_is_graceful(tmp_path: Path) -> None:
+    """BF-014/Bug3b: tracing failures raise a RuntimeError with a user-actionable hint.
+
+    Covers both RuntimeError (wrong tensor dtype) and TypeError (unexpected
+    kwargs in complex model forwards) — both are caught and re-raised with hint.
+    """
+    from mono_quant.export.onnx import ONNXExporter
+
+    class RequiresLong(nn.Module):
+        """Forward only works with LongTensor (embedding model)."""
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(100, 32)
+            self.fc = nn.Linear(32, 10)
+
+        def forward(self, x):
+            return self.fc(self.embed(x))
+
+    class RaisesTypeError(nn.Module):
+        """Forward raises TypeError (simulates complex model with unexpected kwargs)."""
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(100, 32)
+
+        def forward(self, x):
+            raise TypeError("unexpected keyword argument 'position_ids'")
+
+    exporter = ONNXExporter()
+    out = tmp_path / "bad.onnx"
+
+    # RuntimeError path (wrong dtype)
+    float_dummy = torch.zeros(1, 16, dtype=torch.float32)
+    with pytest.raises(RuntimeError, match="dummy_input"):
+        exporter.export(RequiresLong(), out, dummy_input=float_dummy)
+
+    # TypeError path (complex model forward)
+    long_dummy = torch.zeros(1, 16, dtype=torch.long)
+    with pytest.raises(RuntimeError, match="dummy_input"):
+        exporter.export(RaisesTypeError(), out, dummy_input=long_dummy)
+
+
 def test_export_onnx_raises_without_onnx_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

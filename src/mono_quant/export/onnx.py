@@ -101,16 +101,25 @@ class ONNXExporter(BaseExporter):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                torch.onnx.export(
-                    fp32_model,
-                    (dummy_input,),
-                    str(tmp_path),
-                    dynamo=False,
-                    opset_version=opset,
-                    input_names=["input"],
-                    output_names=["output"],
-                    dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-                )
+                try:
+                    torch.onnx.export(
+                        fp32_model,
+                        (dummy_input,),
+                        str(tmp_path),
+                        dynamo=False,
+                        opset_version=opset,
+                        input_names=["input"],
+                        output_names=["output"],
+                        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+                    )
+                except (RuntimeError, TypeError) as e:
+                    raise RuntimeError(
+                        f"ONNX tracing failed: {e}\n\n"
+                        "Hint: this model requires a non-standard input format "
+                        "(e.g., integer token IDs for transformer models). "
+                        "Pass dummy_input explicitly: "
+                        "result.export('out.onnx', dummy_input=torch.zeros(1, 16, dtype=torch.long))"
+                    ) from e
 
             # Step 6: Load proto, insert QDQ nodes
             model_proto = onnx.load(str(tmp_path))
@@ -151,14 +160,22 @@ class ONNXExporter(BaseExporter):
         }
 
     def _infer_dummy_input(self, model: nn.Module) -> torch.Tensor:
-        """Generate a dummy input tensor from the first Linear or Conv2d layer."""
+        """Generate a dummy input tensor from the first recognisable layer.
+
+        Traversal order matters: Embedding is checked before Linear so that
+        LLM-style models (token-ID input) get a LongTensor rather than a
+        FloatTensor, which would crash inside F.embedding().
+        """
         for module in model.modules():
+            if isinstance(module, nn.Embedding):
+                # LLM / transformer: input is token IDs (LongTensor)
+                return torch.zeros(1, 16, dtype=torch.long)
             if isinstance(module, nn.Linear):
                 return torch.zeros(1, module.in_features)
             if isinstance(module, nn.Conv2d):
                 return torch.zeros(1, module.in_channels, 32, 32)
         raise RuntimeError(
-            "Cannot infer dummy input: no Linear or Conv2d layer found. "
+            "Cannot infer dummy input: no Embedding, Linear, or Conv2d layer found. "
             "Please provide dummy_input explicitly."
         )
 

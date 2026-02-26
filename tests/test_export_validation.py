@@ -69,6 +69,30 @@ def test_validate_pre_fp16_model_no_warning():
     assert "no_quantized_layers" not in checks
 
 
+def test_validate_pre_quantized_linear_model_no_warning():
+    """BF-014/Bug2: QuantizedLinear model must NOT trigger no_quantized_layers warning.
+
+    Previously the check used model.parameters() dtype which never detects
+    QuantizedLinear because _quantized_weight is not an nn.Parameter.
+    """
+    from mono_quant.modules.linear import quantize_linear_module
+    linear = nn.Linear(8, 4)
+    ql = quantize_linear_module(linear, dtype=torch.qint8)
+
+    class _QuantizedModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fc = ql
+        def forward(self, x):
+            return self.fc(x)
+
+    warnings = validate_export_pre(_QuantizedModel(), None, "onnx")
+    checks = [w.check for w in warnings]
+    assert "no_quantized_layers" not in checks, (
+        "QuantizedLinear model falsely triggered no_quantized_layers warning"
+    )
+
+
 def test_validate_pre_int8_gptq_errors():
     """INT8 model exported to GPTQ should produce an error-level warning."""
     model = _FP32Model()

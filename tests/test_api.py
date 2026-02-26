@@ -58,6 +58,22 @@ def test_version():
     assert len(mono_quant.__version__.split('.')) >= 2
 
 
+def test_dynamic_quantize_selected_layers_populated():
+    """BF-014/Bug1: selected_layers must be non-empty after dynamic INT8 on a nested model."""
+    class Nested(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fc1 = nn.Linear(16, 8)
+            self.fc2 = nn.Linear(8, 4)
+
+    result = quantize(Nested(), bits=8, dynamic=True)
+    assert result.success
+    assert len(result.info.selected_layers) == 2, (
+        f"Expected 2 selected layers, got {len(result.info.selected_layers)}: "
+        f"{result.info.selected_layers}"
+    )
+
+
 def test_public_api_exports():
     """Test that public API is exported."""
     import mono_quant
