@@ -1,47 +1,66 @@
 # CONTEXT
 
 ## Current State
-**Task:** T-026–T-029 — DONE (Phase 8 complete)
-**Phase:** Phase 8 (Unified Export API) — COMPLETE
+**Task:** Manual testing — IN PROGRESS (not started yet)
+**Phase:** Phase 8 complete. Pending: manual test execution + results recording.
 **Branch:** dev
-**Last Commit:** pending push
+**Last Commit:** 8a0152b (T-029 + docs sync)
 **Date:** 2026-02-26
 
 ## Previous Session Summary
-Phase 7 GGUF Export (T-022–T-025) completed and committed in previous session.
+Phase 8 (T-026–T-029) fully implemented and pushed to dev in this session:
+- `export/orchestrator.py` — unified export dispatch, format auto-detection
+- `result.export()` and `result.convert()` on QuantizationResult
+- Unified `monoquant export` CLI (replaced export/export-gptq/export-gguf)
+- `monoquant convert` CLI command
+- ExportWarning + validate_export_pre/post
+- 37 new tests, 103 total passing
+- Full docs sync (CHANGELOG, README, CLI docs, quickstart, ARCHITECTURE)
 
 ## Current Task State
 
-Phase 8 Unified Export API — fully implemented, 103/103 tests passing (9 skipped: gguf-py not installed):
+**All code is done and pushed. What remains is manual testing only.**
 
-| Task | Description | Status |
-|------|-------------|--------|
-| T-026 | export/orchestrator.py + result.export() + list_formats() | DONE |
-| T-027 | Unified CLI `export` command (replaces export/export-gptq/export-gguf) | DONE |
-| T-028 | ExportWarning, validate_export_pre/post in validators.py | DONE |
-| T-029 | result.convert(bits) + monoquant convert CLI command | DONE |
+Manual test guide lives at: `MANUAL_TESTS.md` (repo root, gitignored — do not commit).
 
-**Test suite:** 103 passed, 9 skipped (gguf-py), 0 failed
+| Test | What | Platform | Status |
+|------|------|----------|--------|
+| A | ONNX export — simple MLP model, full ONNX Runtime forward pass | Windows | NOT RUN |
+| A | ONNX export — opt-125m (expect graceful tracing error) | Windows | NOT RUN |
+| B | GPTQ export → vLLM load + generate | Linux (Ubuntu SSD) | NOT RUN |
+| C | GGUF export → llama.cpp load + generate | Linux or Windows | NOT RUN |
+| D | CLI smoke tests (list-formats, auto-detect, bad ext, convert, missing args) | Windows | NOT RUN |
+| E | result.convert() Python API — warning emitted, models independent | Windows | NOT RUN |
 
-**New tests added:**
-- `tests/test_export_orchestrator.py` — 12 tests
-- `tests/test_cli_export.py` — 8 tests
-- `tests/test_export_validation.py` — 11 tests
-- `tests/test_convert.py` — 6 tests
+## How to Resume
 
-**Breaking CLI change:** `monoquant export-gptq` and `monoquant export-gguf` removed.
-Use `monoquant export --format gptq/gguf` instead. Python API unchanged.
+1. Read `MANUAL_TESTS.md` — it has complete step-by-step instructions for each test,
+   including all installs from scratch, exact commands, expected output, and a
+   pass/fail criteria table.
+2. Suggested order: D and E first (no new installs), then A (onnx already installed),
+   then boot Ubuntu SSD for B and C.
+3. After running tests, paste the results table from the bottom of `MANUAL_TESTS.md`
+   into the chat. The agent will update the relevant IMPL_LOGs and mark tests executed.
 
-## Next Steps
+## Hardware context (for the agent resuming)
+- Windows 11, RTX 4050 Laptop 6 GB VRAM, 16 GB RAM
+- Ubuntu on external 1 TB SSD (available for vLLM / llama.cpp)
+- vLLM requires Linux — use the Ubuntu SSD for Test B
+- llama.cpp works on both platforms
 
-1. [ ] Follow commit procedure for T-026, T-027, T-028, T-029
-2. [ ] Push to dev
-3. [ ] Consider PR dev → main for v2.0
+## Next Steps After Manual Tests
+
+1. [ ] Run manual tests (see MANUAL_TESTS.md)
+2. [ ] Record results and update IMPL_LOGs for T-021 (GPTQ/vLLM) and T-025 (GGUF/llama.cpp)
+3. [ ] Raise PR dev → main for v2.0 release
+4. [ ] Tag v2.0.0 on main
+5. [ ] Publish to PyPI (pyproject.toml is ready)
+6. [ ] T-038 (calibration-based conversion) — whenever desired
 
 ## Open Questions / Decisions Pending
 
 - T-038 (calibration-based conversion): deferred, stub at docs/dev/tasks/T-038/DETAIL.md
-- llama.cpp manual test (T-025): still requires llama.cpp binary; procedure documented
+- PyPI publish: not done yet, pyproject.toml is configured
 
 ## Blockers
 
@@ -49,7 +68,10 @@ None.
 
 ## Quick Links
 
+- **Manual test guide:** MANUAL_TESTS.md (gitignored, repo root)
 - Tasks index: docs/dev/tasks/TASKS.md
+- T-021 log (GPTQ manual test procedure): docs/dev/tasks/T-021/IMPL_LOG.md
+- T-025 log (GGUF manual test procedure): docs/dev/tasks/T-025/IMPL_LOG.md
 - T-026 log: docs/dev/tasks/T-026/IMPL_LOG.md
 - T-027 log: docs/dev/tasks/T-027/IMPL_LOG.md
 - T-028 log: docs/dev/tasks/T-028/IMPL_LOG.md
