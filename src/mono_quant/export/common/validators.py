@@ -1,5 +1,6 @@
-"""ONNX model validation utilities."""
+"""Export validation utilities (ONNX and GPTQ)."""
 
+import json
 from enum import Enum
 from pathlib import Path
 from typing import Union
@@ -58,3 +59,56 @@ def validate_onnx_model(
         concrete_shape = [d if isinstance(d, int) and d > 0 else 1 for d in input_shape]
         dummy = np.zeros(concrete_shape, dtype=np.float32)
         session.run(None, {inputs[0].name: dummy})
+
+
+_REQUIRED_CONFIG_FIELDS = {"bits", "group_size", "desc_act", "sym", "quant_method"}
+
+
+def validate_gptq_checkpoint_structure(path: Union[str, Path]) -> None:
+    """Validate the structure of a GPTQ checkpoint directory.
+
+    Pure Python, no vLLM required.
+
+    Checks:
+    - Directory exists
+    - model.safetensors and quantize_config.json are present
+    - quantize_config.json contains all required fields
+    - model.safetensors contains at least one .qweight key
+
+    Args:
+        path: Path to the GPTQ checkpoint directory.
+
+    Raises:
+        FileNotFoundError: If the directory or required files are missing.
+        ValueError: If required config fields are absent or no .qweight key found.
+    """
+    path = Path(path)
+
+    if not path.is_dir():
+        raise FileNotFoundError(f"GPTQ checkpoint directory not found: {path}")
+
+    safetensors_path = path / "model.safetensors"
+    config_path = path / "quantize_config.json"
+
+    if not safetensors_path.exists():
+        raise FileNotFoundError(f"model.safetensors not found in {path}")
+    if not config_path.exists():
+        raise FileNotFoundError(f"quantize_config.json not found in {path}")
+
+    config = json.loads(config_path.read_text())
+    missing = _REQUIRED_CONFIG_FIELDS - config.keys()
+    if missing:
+        raise ValueError(f"quantize_config.json is missing required fields: {missing}")
+
+    # Inspect safetensors header without loading full tensors
+    from safetensors import safe_open
+
+    with safe_open(str(safetensors_path), framework="pt", device="cpu") as f:
+        keys = list(f.keys())
+
+    qweight_keys = [k for k in keys if k.endswith(".qweight")]
+    if not qweight_keys:
+        raise ValueError(
+            f"model.safetensors contains no .qweight keys — "
+            f"found keys: {keys[:10]}{'...' if len(keys) > 10 else ''}"
+        )

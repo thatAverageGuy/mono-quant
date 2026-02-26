@@ -33,6 +33,7 @@ from .commands import (
     calibrate_cmd,
     compare_cmd,
     export_cmd,
+    export_gptq_cmd,
     info_cmd,
     quantize_cmd,
     validate_cmd,
@@ -80,6 +81,7 @@ cli.add_command(info_cmd)
 cli.add_command(compare_cmd)
 cli.add_command(calibrate_cmd)
 cli.add_command(export_cmd)
+cli.add_command(export_gptq_cmd)
 
 
 __all__ = ["cli"]

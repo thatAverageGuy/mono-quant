@@ -531,10 +531,80 @@ def export_cmd(
         raise _click.ClickException(f"Export failed: {e}")
 
 
+# export_gptq_cmd - Export a quantized model to GPTQ INT4 format
+@_click.command(name="export-gptq")
+@_click.option(
+    "--model",
+    "-m",
+    "model_path",
+    required=True,
+    type=_click.Path(exists=True),
+    help="Path to model file (.pt saved with torch.save)",
+)
+@_click.option(
+    "--output",
+    "-o",
+    "output_path",
+    required=True,
+    type=_click.Path(),
+    help="Output directory for GPTQ files",
+)
+@_click.option(
+    "--group-size",
+    default=128,
+    type=int,
+    show_default=True,
+    help="Columns per quantization group",
+)
+@_click.option(
+    "--sym",
+    is_flag=True,
+    default=False,
+    help="Use symmetric quantization (default: asymmetric)",
+)
+@_click.pass_obj
+def export_gptq_cmd(
+    obj: dict,
+    model_path: str,
+    output_path: str,
+    group_size: int,
+    sym: bool,
+) -> None:
+    """Export a model to GPTQ INT4 format (AutoGPTQ V1 / vLLM-compatible).
+
+    Writes model.safetensors and quantize_config.json to the output directory.
+    The model file must be saved with torch.save(model, path).
+
+    Examples:
+        # Basic export
+        monoquant export-gptq --model q_model.pt --output ./gptq_dir/
+
+        # Custom group size + symmetric
+        monoquant export-gptq -m q_model.pt -o ./gptq_dir/ --group-size 64 --sym
+    """
+    from mono_quant import export_to_gptq
+
+    _click.echo(f"Loading model: {model_path}")
+    try:
+        model = torch.load(model_path, weights_only=False)
+    except Exception as e:
+        raise _click.ClickException(f"Failed to load model: {e}")
+
+    _click.echo(f"Exporting to GPTQ: {output_path}")
+    try:
+        export_to_gptq(model, output_path, group_size=group_size, sym=sym)
+        _click.echo(f"Export complete: {output_path}")
+        _click.echo(f"  model.safetensors")
+        _click.echo(f"  quantize_config.json")
+    except Exception as e:
+        raise _click.ClickException(f"Export failed: {e}")
+
+
 __all__ = [
     "quantize_cmd",
     "validate_cmd",
     "info_cmd",
     "compare_cmd",
     "calibrate_cmd",
+    "export_gptq_cmd",
 ]

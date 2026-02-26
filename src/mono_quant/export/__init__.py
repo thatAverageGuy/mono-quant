@@ -1,10 +1,34 @@
-"""ONNX export entry point for mono-quant."""
+"""Export entry points for mono-quant (ONNX, GPTQ)."""
 
 from pathlib import Path
 from typing import Any, Optional, Union
 
 import torch
 import torch.nn as nn
+
+
+def export_to_gptq(
+    model: nn.Module,
+    path: Union[str, Path],
+    group_size: int = 128,
+    sym: bool = False,
+    **kwargs: Any,
+) -> None:
+    """Export a model to GPTQ INT4 format (AutoGPTQ V1 / vLLM-compatible).
+
+    Args:
+        model: Any nn.Module (quantized or plain FP32).
+        path: Output directory. Created if it does not exist.
+        group_size: Columns per quantization group. Must divide in_features.
+        sym: Symmetric quantization if True, asymmetric if False.
+
+    Raises:
+        TypeError: If model is not an nn.Module.
+        ValueError: If a layer's dimensions are incompatible with group_size.
+    """
+    from mono_quant.export.gptq_impl import export_to_gptq_impl
+
+    export_to_gptq_impl(model, path, group_size=group_size, sym=sym)
 
 
 def export_to_onnx(

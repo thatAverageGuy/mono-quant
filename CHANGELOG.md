@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `export_to_gptq(model, path, group_size, sym)` — GPTQ INT4 export in AutoGPTQ V1
+  format; writes `model.safetensors` (qweight, qzeros, scales, g_idx) and
+  `quantize_config.json`; accepts any nn.Module (quantized or plain FP32) (T-018, T-019)
+- `monoquant export-gptq` CLI command — `--model`, `--output`, `--group-size`, `--sym`
+  options; vLLM/SGLang compatible (T-019)
+- `validate_gptq_checkpoint_structure(path)` in `mono_quant.export.common.validators` —
+  pure-Python structural check (no vLLM); verifies files, config fields, qweight keys (T-021)
 - `export_to_onnx(model, path, opset, dummy_input, validate)` — ONNX export with
   QDQ nodes for INT8 models; INT4 layers export as FP32 with a warning (T-034–T-036)
 - `monoquant export` CLI command — `--model`, `--output`, `--opset`, `--validate`

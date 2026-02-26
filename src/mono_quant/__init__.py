@@ -88,6 +88,23 @@ from mono_quant.io.validation import (
     validate_quantization,
 )
 
+def export_to_gptq(model, path, group_size=128, sym=False, **kwargs):
+    """Export a model to GPTQ INT4 format (AutoGPTQ V1 / vLLM-compatible).
+
+    Args:
+        model: Any nn.Module (quantized or plain FP32).
+        path: Output directory. Created if it does not exist.
+        group_size: Columns per quantization group. Must divide in_features.
+        sym: Symmetric quantization if True, asymmetric if False.
+
+    Raises:
+        TypeError: If model is not an nn.Module.
+        ValueError: If a layer's dimensions are incompatible with group_size.
+    """
+    from mono_quant.export import export_to_gptq as _export_gptq
+    return _export_gptq(model, path, group_size=group_size, sym=sym)
+
+
 def export_to_onnx(model, path, **kwargs):
     """Export a quantized model to ONNX format with QDQ nodes.
 
@@ -112,6 +129,7 @@ __all__ = [
     # Unified API
     "quantize",
     "export_to_onnx",
+    "export_to_gptq",
     # Configuration
     "QuantizationConfig",
     # Quantization functions

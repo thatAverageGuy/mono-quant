@@ -69,14 +69,15 @@
 
 ---
 
-## Pending (v2.0 Phase 6 — GPTQ/AWQ Export)
+## Completed (v2.0 Phase 6 — GPTQ Export)
+
+> T-020 (AWQ) dropped — true AWQ requires Hessian-based calibration, not a format wrapper.
 
 | ID | Summary | Status | Depends On | Detail |
 |----|---------|--------|------------|--------|
-| T-018 | 4-bit packing format matching AutoGPTQ | TODO | T-017 | docs/dev/tasks/T-018/ |
-| T-019 | GPTQ checkpoint export with quantization_config.json | TODO | T-018 | docs/dev/tasks/T-019/ |
-| T-020 | AWQ checkpoint export with activation-aware weights | TODO | T-018 | docs/dev/tasks/T-020/ |
-| T-021 | vLLM/SGLang validation and accuracy benchmarking | TODO | T-019, T-020 | docs/dev/tasks/T-021/ |
+| T-018 | GPTQ packing math + GPTQExporter (AutoGPTQ V1 format) | DONE | — | docs/dev/tasks/T-018/ |
+| T-019 | Public API + CLI export-gptq command + 11 tests | DONE | T-018 | docs/dev/tasks/T-019/ |
+| T-021 | Manual vLLM procedure + validate_gptq_checkpoint_structure | DONE | T-019 | docs/dev/tasks/T-021/ |
 
 ## Pending (v2.0 Phase 7 — GGUF Export)
 
