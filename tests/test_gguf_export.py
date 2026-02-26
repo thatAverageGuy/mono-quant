@@ -372,7 +372,7 @@ def test_gguf_export_unknown_arch_warns(tmp_path: Path) -> None:
 
 
 def test_gguf_export_cli_runs(tmp_path: Path) -> None:
-    """CLI export-gguf command produces model.gguf without error."""
+    """Unified CLI export command produces model.gguf without error."""
     from click.testing import CliRunner
     from mono_quant.cli.main import cli
 
@@ -384,9 +384,10 @@ def test_gguf_export_cli_runs(tmp_path: Path) -> None:
     output_dir = tmp_path / "gguf_out"
     runner = CliRunner()
     result = runner.invoke(cli, [
-        "export-gguf",
+        "export",
         "--model", str(model_pt),
         "--output", str(output_dir),
+        "--format", "gguf",
     ])
     assert result.exit_code == 0, f"CLI failed:\n{result.output}"
     assert (output_dir / "model.gguf").exists()

@@ -459,223 +459,148 @@ def calibrate_cmd(model_path: str, data_path: str, output: Optional[str], sample
     raise SystemExit(1)
 
 
-# export_cmd - Export a quantized model to ONNX format
+# export_cmd — Unified export command (replaces export, export-gptq, export-gguf)
 @_click.command(name="export")
 @_click.option(
     "--model",
     "-m",
     "model_path",
-    required=True,
+    default=None,
     type=_click.Path(exists=True),
-    help="Path to quantized model file (.pt saved with torch.save)",
+    help="Path to model file (.pt saved with torch.save)",
 )
 @_click.option(
     "--output",
     "-o",
     "output_path",
-    required=True,
+    default=None,
     type=_click.Path(),
-    help="Output ONNX file path (.onnx)",
+    help="Output path or directory",
 )
 @_click.option(
-    "--opset",
-    default=14,
-    type=int,
-    show_default=True,
-    help="ONNX opset version",
+    "--format",
+    "-f",
+    "fmt",
+    default=None,
+    type=_click.Choice(["onnx", "gptq", "gguf"]),
+    help="Export format. Auto-detected from --output extension if omitted.",
 )
+@_click.option(
+    "--list-formats",
+    "list_fmts",
+    is_flag=True,
+    default=False,
+    help="Print available export formats and exit.",
+)
+# ONNX options
+@_click.option("--opset", default=14, type=int, show_default=True, help="ONNX opset version")
 @_click.option(
     "--validate",
     type=_click.Choice(["none", "load", "full"]),
     default="none",
     show_default=True,
-    help="Validation level after export",
+    help="Post-export validation level (ONNX only)",
 )
-@_click.pass_obj
-def export_cmd(
-    obj: dict,
-    model_path: str,
-    output_path: str,
-    opset: int,
-    validate: str,
-) -> None:
-    """Export a quantized model to ONNX format with QDQ nodes.
-
-    The model file must be saved with torch.save(model, path), not save_model().
-
-    Requires ONNX dependencies:
-        pip install mono-quant[onnx]
-
-    Examples:
-        # Basic export
-        monoquant export --model q_model.pt --output model.onnx
-
-        # Export with opset 17 and load validation
-        monoquant export -m q_model.pt -o model.onnx --opset 17 --validate load
-    """
-    from mono_quant import export_to_onnx
-
-    _click.echo(f"Loading model: {model_path}")
-    try:
-        model = torch.load(model_path, weights_only=False)
-    except Exception as e:
-        raise _click.ClickException(f"Failed to load model: {e}")
-
-    _click.echo(f"Exporting to ONNX: {output_path}")
-    try:
-        export_to_onnx(model, output_path, opset=opset, validate=validate)
-        _click.echo(f"Export complete: {output_path}")
-    except ImportError as e:
-        raise _click.ClickException(str(e))
-    except Exception as e:
-        raise _click.ClickException(f"Export failed: {e}")
-
-
-# export_gptq_cmd - Export a quantized model to GPTQ INT4 format
-@_click.command(name="export-gptq")
-@_click.option(
-    "--model",
-    "-m",
-    "model_path",
-    required=True,
-    type=_click.Path(exists=True),
-    help="Path to model file (.pt saved with torch.save)",
-)
-@_click.option(
-    "--output",
-    "-o",
-    "output_path",
-    required=True,
-    type=_click.Path(),
-    help="Output directory for GPTQ files",
-)
+# GPTQ options
 @_click.option(
     "--group-size",
     default=128,
     type=int,
     show_default=True,
-    help="Columns per quantization group",
+    help="Quantization group size (GPTQ only)",
 )
 @_click.option(
     "--sym",
     is_flag=True,
     default=False,
-    help="Use symmetric quantization (default: asymmetric)",
+    help="Symmetric quantization (GPTQ only; default: asymmetric)",
 )
-@_click.pass_obj
-def export_gptq_cmd(
-    obj: dict,
-    model_path: str,
-    output_path: str,
-    group_size: int,
-    sym: bool,
-) -> None:
-    """Export a model to GPTQ INT4 format (AutoGPTQ V1 / vLLM-compatible).
-
-    Writes model.safetensors and quantize_config.json to the output directory.
-    The model file must be saved with torch.save(model, path).
-
-    Examples:
-        # Basic export
-        monoquant export-gptq --model q_model.pt --output ./gptq_dir/
-
-        # Custom group size + symmetric
-        monoquant export-gptq -m q_model.pt -o ./gptq_dir/ --group-size 64 --sym
-    """
-    from mono_quant import export_to_gptq
-
-    _click.echo(f"Loading model: {model_path}")
-    try:
-        model = torch.load(model_path, weights_only=False)
-    except Exception as e:
-        raise _click.ClickException(f"Failed to load model: {e}")
-
-    _click.echo(f"Exporting to GPTQ: {output_path}")
-    try:
-        export_to_gptq(model, output_path, group_size=group_size, sym=sym)
-        _click.echo(f"Export complete: {output_path}")
-        _click.echo(f"  model.safetensors")
-        _click.echo(f"  quantize_config.json")
-    except Exception as e:
-        raise _click.ClickException(f"Export failed: {e}")
-
-
-# export_gguf_cmd — Export a model to GGUF format for llama.cpp
-@_click.command(name="export-gguf")
-@_click.option(
-    "--model",
-    "-m",
-    "model_path",
-    required=True,
-    type=_click.Path(exists=True),
-    help="Path to model file (.pt saved with torch.save)",
-)
-@_click.option(
-    "--output",
-    "-o",
-    "output_path",
-    required=True,
-    type=_click.Path(),
-    help="Output directory for model.gguf",
-)
-@_click.option(
-    "--quantization-type",
-    default="q4_k_s",
-    show_default=True,
-    type=_click.Choice(["q4_k_s"]),
-    help="GGUF quantization type",
-)
+# GGUF options
 @_click.option(
     "--architecture",
     default=None,
-    help="GGUF architecture (e.g. llama, qwen2, gpt2). Auto-detected if not set.",
+    help="GGUF architecture string (e.g. llama, qwen2). Auto-detected if omitted.",
 )
 @_click.option(
     "--config",
     "config_path",
     default=None,
     type=_click.Path(exists=True),
-    help="Path to HuggingFace config.json for architecture metadata",
+    help="Path to HuggingFace config.json (GGUF only)",
 )
 @_click.option(
     "--model-param",
     "model_params_raw",
     multiple=True,
     metavar="KEY=VALUE",
-    help="Model hyperparameter override (e.g. --model-param num_hidden_layers=32). Repeatable.",
+    help="Model hyperparameter override (GGUF only). Repeatable.",
 )
 @_click.pass_obj
-def export_gguf_cmd(
+def export_cmd(
     obj: dict,
-    model_path: str,
-    output_path: str,
-    quantization_type: str,
+    model_path: Optional[str],
+    output_path: Optional[str],
+    fmt: Optional[str],
+    list_fmts: bool,
+    opset: int,
+    validate: str,
+    group_size: int,
+    sym: bool,
     architecture: Optional[str],
     config_path: Optional[str],
     model_params_raw: tuple,
 ) -> None:
-    """Export a model to GGUF format for use with llama.cpp.
+    """Export a model to ONNX, GPTQ, or GGUF format.
 
-    Writes model.gguf to the output directory.
-    The model file must be saved with torch.save(model, path).
+    Format is auto-detected from the output path extension:
+      .onnx → ONNX   |   .gguf → GGUF   |   directory → GPTQ
 
     Examples:
-        # Auto-detect architecture from config.json
-        monoquant export-gguf -m model.pt -o ./gguf_dir/ --config ./config.json
 
-        # Explicit architecture + manual params
-        monoquant export-gguf -m model.pt -o ./gguf_dir/ --architecture llama \\
-            --model-param num_hidden_layers=32 --model-param hidden_size=4096
+    \b
+        # List available formats
+        monoquant export --list-formats
+
+    \b
+        # ONNX — auto-detected from .onnx extension
+        monoquant export -m q_model.pt -o model.onnx
+
+    \b
+        # ONNX — explicit format + opset + validation
+        monoquant export -m q_model.pt -o model.onnx --format onnx --opset 17 --validate load
+
+    \b
+        # GPTQ
+        monoquant export -m q_model.pt -o ./gptq_dir/ --format gptq --group-size 64 --sym
+
+    \b
+        # GGUF — auto-detected from .gguf extension
+        monoquant export -m q_model.pt -o model.gguf --config ./config.json
     """
-    from mono_quant import export_to_gguf
+    from mono_quant.export.orchestrator import export_model, list_formats
 
-    # Parse --model-param KEY=VALUE pairs
+    # --list-formats: print table and exit
+    if list_fmts:
+        fmts = list_formats()
+        _click.echo("Supported export formats:\n")
+        for name, desc in fmts.items():
+            _click.echo(f"  {name:<8}  {desc}")
+        return
+
+    # Require --model and --output when not listing formats
+    if not model_path:
+        raise _click.UsageError("--model / -m is required unless --list-formats is set.")
+    if not output_path:
+        raise _click.UsageError("--output / -o is required unless --list-formats is set.")
+
+    # Parse --model-param KEY=VALUE pairs (GGUF)
     model_params: dict = {}
     for raw in model_params_raw:
         if "=" not in raw:
-            raise _click.BadParameter(f"Expected KEY=VALUE, got: {raw!r}", param_hint="--model-param")
+            raise _click.BadParameter(
+                f"Expected KEY=VALUE, got: {raw!r}", param_hint="--model-param"
+            )
         k, v = raw.split("=", 1)
-        # Try to coerce value to int, then float, then keep as string
         try:
             model_params[k] = int(v)
         except ValueError:
@@ -690,19 +615,86 @@ def export_gguf_cmd(
     except Exception as e:
         raise _click.ClickException(f"Failed to load model: {e}")
 
-    _click.echo(f"Exporting to GGUF: {output_path}")
+    _click.echo(f"Exporting to {fmt or 'auto'}: {output_path}")
     try:
-        export_to_gguf(
+        export_model(
             model,
             output_path,
-            quantization_type=quantization_type,
+            format=fmt,
+            # ONNX
+            opset=opset,
+            validate=validate,
+            # GPTQ
+            group_size=group_size,
+            sym=sym,
+            # GGUF
             architecture=architecture,
             config_path=config_path,
             model_params=model_params if model_params else None,
         )
-        _click.echo(f"Export complete: {output_path}/model.gguf")
+        _click.echo(f"Export complete: {output_path}")
+    except ValueError as e:
+        raise _click.ClickException(str(e))
+    except ImportError as e:
+        raise _click.ClickException(str(e))
     except Exception as e:
         raise _click.ClickException(f"Export failed: {e}")
+
+
+# convert_cmd — Convert a saved model to a different bit-width
+@_click.command(name="convert")
+@_click.argument("input_path", type=_click.Path(exists=True))
+@_click.argument("output_path", type=_click.Path())
+@_click.option(
+    "--bits",
+    "-b",
+    required=True,
+    type=_click.IntRange(4, 16),
+    help="Target quantization bit-width (4, 8, or 16)",
+)
+def convert_cmd(input_path: str, output_path: str, bits: int) -> None:
+    """Convert a saved model to a different quantization bit-width.
+
+    Dynamic re-quantization: dequantizes the model then re-quantizes to
+    the requested precision. No calibration data required.
+
+    INPUT   Path to model file (.pt saved with torch.save)
+    OUTPUT  Destination path for the converted model
+
+    Examples:
+
+    \b
+        monoquant convert q_model_int8.pt q_model_int4.pt --bits 4
+        monoquant convert q_model_int8.pt q_model_fp16.pt --bits 16
+    """
+    import warnings as _warnings
+
+    _click.echo(f"Loading model: {input_path}")
+    try:
+        model = torch.load(input_path, weights_only=False)
+    except Exception as e:
+        raise _click.ClickException(f"Failed to load model: {e}")
+
+    from mono_quant.api.quantize import quantize
+    from mono_quant.core.quantizers import dequantize_model
+
+    _click.echo(f"Converting to {bits}-bit via dynamic re-quantization…")
+    with _warnings.catch_warnings(record=True) as caught:
+        _warnings.simplefilter("always")
+        fp32_model = dequantize_model(model)
+        result = quantize(fp32_model, bits=bits, dynamic=True)
+
+    for w in caught:
+        _click.echo(f"[WARNING] {w.message}", err=True)
+
+    if result.info.sqnr_db is not None:
+        _click.echo(f"SQNR after conversion: {result.info.sqnr_db:.2f} dB")
+
+    try:
+        torch.save(result.model, output_path)
+        _click.echo(f"Saved converted model to: {output_path}")
+    except Exception as e:
+        raise _click.ClickException(f"Failed to save model: {e}")
 
 
 __all__ = [
@@ -711,6 +703,6 @@ __all__ = [
     "info_cmd",
     "compare_cmd",
     "calibrate_cmd",
-    "export_gptq_cmd",
-    "export_gguf_cmd",
+    "export_cmd",
+    "convert_cmd",
 ]
