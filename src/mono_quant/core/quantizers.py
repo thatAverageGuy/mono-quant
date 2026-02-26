@@ -934,8 +934,9 @@ def _quantize_int8_model(
             # Replace with quantized Conv2d
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             setattr(model_copy, name, q_module)
-        elif isinstance(module, nn.Embedding):  # NEW
-            # Replace with QuantizedEmbedding
+        elif type(module) is nn.Embedding:
+            # Replace with QuantizedEmbedding (exact-type only — subclasses are
+            # positional encodings with custom forwards, skip them)
             q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
             setattr(model_copy, name, q_module)
         elif isinstance(module, nn.Sequential):
@@ -978,8 +979,9 @@ def _quantize_int8_model(
             # Found an unquantized Conv2d layer in a non-Sequential container
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             setattr(parent, child_name, q_module)
-        elif isinstance(module, nn.Embedding):
+        elif type(module) is nn.Embedding:
             # Found an unquantized Embedding layer in a non-Sequential container
+            # (exact-type only — subclasses are positional encodings, skip them)
             q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
             setattr(parent, child_name, q_module)
 
@@ -1027,7 +1029,8 @@ def _quantize_sequential_module(
         elif isinstance(module, nn.Conv2d):
             q_module = quantize_conv2d_module(module, dtype=dtype, symmetric=symmetric)
             sequential[i] = q_module
-        elif isinstance(module, nn.Embedding):  # NEW
+        elif type(module) is nn.Embedding:
+            # exact-type only — subclasses are positional encodings, skip them
             q_module = quantize_embedding_module(module, dtype=dtype, symmetric=symmetric)
             sequential[i] = q_module
         else:

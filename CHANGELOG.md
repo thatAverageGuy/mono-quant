@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `_quantize_int8_model` and `_quantize_sequential_module` now use exact-type matching
+  (`type(module) is nn.Embedding`) to detect embedding layers; previously `isinstance`
+  matched all `nn.Embedding` subclasses (positional encodings, rotary embeddings common
+  in OPT/Llama/GPT-2/Falcon), causing those modules to be quantized and then have their
+  custom `forward()` signatures silently destroyed by `revert_to_standard_modules`,
+  producing `TypeError` during ONNX tracing (BF-015)
+- `quantize(..., dynamic=True)` now populates `result.info.selected_layers` correctly;
+  previously hardcoded to `[]` so layer count always appeared as 0 (BF-014)
+- Pre-export validator no longer emits false "no quantized parameters" warning for
+  correctly quantized INT8/INT4 models; old check used `model.parameters()` dtype which
+  never sees `QuantizedLinear._quantized_weight` (not an `nn.Parameter`) (BF-014)
+- `ONNXExporter._infer_dummy_input` now returns a `LongTensor` for models that have
+  `nn.Embedding` before any `nn.Linear`, preventing a raw `RuntimeError` crash when
+  exporting LLM-style models (BF-014)
+- ONNX tracing failures are now caught and re-raised with a user-actionable hint to
+  pass `dummy_input` explicitly, instead of propagating a raw PyTorch internal traceback (BF-014)
+
 ### Added
 - `export_model(model, path, format, **options)` — unified export orchestrator; auto-detects
   format from path extension (`.onnx` → ONNX, `.gguf` → GGUF, directory → GPTQ); dispatches

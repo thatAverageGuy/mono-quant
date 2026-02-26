@@ -616,3 +616,72 @@ def test_static_quantize_no_calibration_data_no_input_scale():
             assert m.input_scale is None, (
                 "No calibration data → input_scale must remain None"
             )
+
+
+# ---------------------------------------------------------------------------
+# BF-015: nn.Embedding subclass quantization — use exact-type match
+# ---------------------------------------------------------------------------
+
+
+def test_quantize_int8_exact_embedding_is_quantized():
+    """BF-015: A plain nn.Embedding (exact type) IS quantized by dynamic_quantize."""
+    from mono_quant import dynamic_quantize
+    from mono_quant.modules.embedding import QuantizedEmbedding
+
+    class ModelWithEmbedding(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(100, 16)
+            self.fc = nn.Linear(16, 4)
+
+        def forward(self, x):
+            return self.fc(self.embed(x))
+
+    model = ModelWithEmbedding()
+    q_model, skipped = dynamic_quantize(model)
+
+    assert isinstance(q_model.embed, QuantizedEmbedding), (
+        "Plain nn.Embedding should be quantized to QuantizedEmbedding"
+    )
+    assert "embed" not in skipped, (
+        "Plain nn.Embedding must not appear in skipped layers"
+    )
+
+
+def test_quantize_int8_embedding_subclass_is_skipped():
+    """BF-015: An nn.Embedding subclass is NOT quantized — skipped to preserve custom forward."""
+    from mono_quant import dynamic_quantize
+    from mono_quant.modules.embedding import QuantizedEmbedding
+
+    class LearnedPositionalEmbedding(nn.Embedding):
+        """Simulates OPTLearnedPositionalEmbedding — custom forward with extra kwargs."""
+        def forward(self, attention_mask, past_seen_tokens=0, position_ids=None):
+            # Custom forward — would break if reverted to plain nn.Embedding
+            positions = torch.arange(attention_mask.shape[1])
+            return super().forward(positions)
+
+    class TransformerModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.token_embed = nn.Embedding(1000, 16)
+            self.pos_embed = LearnedPositionalEmbedding(512, 16)
+            self.fc = nn.Linear(16, 4)
+
+        def forward(self, x):
+            return self.fc(self.token_embed(x) + self.pos_embed(x, x))
+
+    model = TransformerModel()
+    q_model, skipped = dynamic_quantize(model)
+
+    # Token embedding (exact nn.Embedding) should be quantized
+    assert isinstance(q_model.token_embed, QuantizedEmbedding), (
+        "Plain nn.Embedding (token_embed) should be quantized"
+    )
+
+    # Positional embedding subclass should NOT be quantized
+    assert not isinstance(q_model.pos_embed, QuantizedEmbedding), (
+        "nn.Embedding subclass (pos_embed) must NOT be quantized — custom forward must be preserved"
+    )
+    assert "pos_embed" in skipped, (
+        "nn.Embedding subclass must appear in skipped layers"
+    )

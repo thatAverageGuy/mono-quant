@@ -6,7 +6,18 @@
 
 ## Active
 
-*No active tasks.*
+| ID | Summary | Status | Depends On | Detail |
+|----|---------|--------|------------|--------|
+| T-040 | dynamo=True ONNX export path for transformer models | TODO | BF-014, BF-015 | docs/dev/tasks/T-040/ |
+| CL-002 | Version bump 1.1.0 → 2.0.0 before release | TODO | — | docs/dev/tasks/CL-002/ |
+| BF-016 | Fix validate_onnx_model full-level hardcodes float32 dummy | TODO | T-040 | docs/dev/tasks/BF-016/ |
+
+## Completed (Manual test bug fixes)
+
+| ID | Summary | Completed | Detail |
+|----|---------|-----------|--------|
+| BF-015 | Fix nn.Embedding subclass quantization — use exact-type match | 2026-02-27 | docs/dev/tasks/BF-015/ |
+| BF-014 | Three ONNX/dynamic-quant bugs from manual test A2 | 2026-02-26 | docs/dev/tasks/BF-014/ |
 
 ---
 
