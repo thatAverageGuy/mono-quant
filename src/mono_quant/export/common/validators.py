@@ -166,12 +166,26 @@ def validate_onnx_model(
 
         import numpy as np
 
+        # Map ONNX type strings to numpy dtypes. Fallback: float32.
+        _ONNX_TO_NP = {
+            "tensor(float)":   np.float32,
+            "tensor(float16)": np.float16,
+            "tensor(double)":  np.float64,
+            "tensor(int64)":   np.int64,
+            "tensor(int32)":   np.int32,
+            "tensor(int16)":   np.int16,
+            "tensor(int8)":    np.int8,
+            "tensor(uint8)":   np.uint8,
+            "tensor(bool)":    np.bool_,
+        }
+
         session = ort.InferenceSession(str(path))
         inputs = session.get_inputs()
         input_shape = inputs[0].shape
         # Replace dynamic (symbolic) dims with 1
         concrete_shape = [d if isinstance(d, int) and d > 0 else 1 for d in input_shape]
-        dummy = np.zeros(concrete_shape, dtype=np.float32)
+        input_dtype = _ONNX_TO_NP.get(inputs[0].type, np.float32)
+        dummy = np.zeros(concrete_shape, dtype=input_dtype)
         session.run(None, {inputs[0].name: dummy})
 
 

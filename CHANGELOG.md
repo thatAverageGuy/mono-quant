@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dynamo=True` path) (T-040)
 
 ### Fixed
+- `validate_onnx_model` full-level validation now infers numpy dtype from the ONNX
+  graph's input spec (`inputs[0].type`) instead of hardcoding `float32`; transformer
+  models with `int64` (token ID) inputs now pass full validation without onnxruntime
+  type mismatch errors (BF-016)
 - `_quantize_int8_model` and `_quantize_sequential_module` now use exact-type matching
   (`type(module) is nn.Embedding`) to detect embedding layers; previously `isinstance`
   matched all `nn.Embedding` subclasses (positional encodings, rotary embeddings common

@@ -165,3 +165,39 @@ def test_validate_post_dispatches_gguf(tmp_path):
 def test_validate_post_unknown_format_raises():
     with pytest.raises(ValueError, match="Unknown format"):
         validate_export_post("/some/path", "awq")
+
+
+# ---------------------------------------------------------------------------
+# BF-016: validate_onnx_model full-level infers dtype from ONNX input spec
+# ---------------------------------------------------------------------------
+
+
+def test_validate_onnx_full_int64_model(tmp_path):
+    """BF-016: full validation must not crash on int64-input (transformer) models."""
+    pytest.importorskip("onnx", reason="onnx not installed")
+    pytest.importorskip("onnxruntime", reason="onnxruntime not installed")
+    pytest.importorskip("onnxscript", reason="onnxscript not installed")
+
+    from mono_quant import dynamic_quantize
+    from mono_quant.export.onnx import ONNXExporter
+    from mono_quant.export.common.validators import validate_onnx_model, ValidationLevel
+
+    class EmbeddingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(100, 32)
+            self.fc = nn.Linear(32, 10)
+
+        def forward(self, x):
+            return self.fc(self.embed(x))
+
+    model = EmbeddingModel()
+    q_model, _ = dynamic_quantize(model)
+    out = tmp_path / "embed.onnx"
+    dummy = torch.zeros(1, 16, dtype=torch.long)
+
+    exporter = ONNXExporter()
+    exporter.export(q_model, out, dummy_input=dummy, dynamo=True)
+
+    # Must not raise — previously failed with onnxruntime dtype mismatch
+    validate_onnx_model(out, level=ValidationLevel.FULL)

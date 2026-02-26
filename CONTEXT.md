@@ -1,34 +1,41 @@
 # CONTEXT
 
 ## Current State
-**Task:** T-040 — DONE (pending commit)
-**Phase:** Sequential fix run. BF-014 + BF-015 + CL-002 committed; T-040 done; BF-016 remains.
+**Task:** BF-016 — DONE (pending commit)
+**Phase:** Sequential fix run complete. All active tasks done. Ready for manual tests + PR.
 **Branch:** dev
-**Last Commit:** 8044cab (CL-002)
+**Last Commit:** c6c5a19 (T-040)
 **Date:** 2026-02-27
 
 ## Previous Session Summary
-Phase 8 (T-026–T-029) fully implemented and pushed. Manual test A2 (OPT-125m)
-revealed bugs fixed in BF-014 and BF-015. Committed sequentially: BF-014 (9b5f141),
-BF-015 (51a1740), CL-002 (8044cab). T-040 implemented and pending commit.
+Sequential fix run following manual test A2 failure:
+- BF-014 (9b5f141): three ONNX/dynamic-quant bugs fixed
+- BF-015 (51a1740): nn.Embedding subclass quantization fixed
+- CL-002 (8044cab): version bumped 1.1.0 → 2.0.0
+- T-040 (c6c5a19): dynamo=True ONNX export path added
+- BF-016: validate_onnx_model dtype fix — DONE, pending commit
 
 ## Current Task State
 
-**T-040 — all done, pre-commit:**
-- Code: DONE (onnx.py + onnx_impl.py + orchestrator.py + pyproject.toml)
-- Tests: DONE (3 new dynamo tests; 112 total passing, 9 skipped)
+**BF-016 — all done, pre-commit:**
+- Code: DONE (validators.py: dtype inferred from ONNX input spec)
+- Tests: DONE (1 new; 113 total passing, 9 skipped)
 - IMPL_LOG: DONE
-- TASKS.md: DONE
+- TASKS.md: DONE (no active tasks remain)
 - CHANGELOG.md: DONE
 - CONTEXT.md: DONE (this file)
 - Commit: PENDING USER APPROVAL
+
+## Active Tasks
+
+None. All scoped tasks complete.
 
 ## Manual Test Status
 
 | Test | What | Platform | Status |
 |------|------|----------|--------|
 | A1 | ONNX export — simple MLP | Windows | PASSED |
-| A2 | ONNX export — OPT-125m | Windows | FIXED (BF-014 + BF-015 + T-040) — re-run needed |
+| A2 | ONNX export — OPT-125m | Windows | FIXED — re-run pending |
 | B | GPTQ export → vLLM load + generate | Linux (Ubuntu SSD) | NOT RUN |
 | C | GGUF export → llama.cpp load + generate | Linux or Windows | NOT RUN |
 | D | CLI smoke tests | Windows | NOT RUN |
@@ -36,11 +43,13 @@ BF-015 (51a1740), CL-002 (8044cab). T-040 implemented and pending commit.
 
 ## Next Steps
 
-1. [ ] Get user approval → commit T-040
-2. [ ] Implement BF-016 (validate_onnx_model dtype fix)
-3. [ ] Re-run test A2 after all fixes committed
-4. [ ] Run tests B, C, D, E
+1. [ ] Get user approval → commit BF-016
+2. [ ] Re-run test A2 with dynamo=True to confirm OPT-125m works end-to-end
+3. [ ] Run tests B, C, D, E
+4. [ ] Record all results, update relevant IMPL_LOGs
 5. [ ] Raise PR dev → main for v2.0 release
+6. [ ] Tag v2.0.0 on main
+7. [ ] Publish to PyPI
 
 ## Open Questions / Decisions Pending
 
@@ -53,6 +62,6 @@ None.
 
 ## Quick Links
 
-- BF-016 detail: docs/dev/tasks/BF-016/ (TBD)
 - Tasks index: docs/dev/tasks/TASKS.md
 - Architecture: docs/dev/ARCHITECTURE.md
+- CHANGELOG: CHANGELOG.md
