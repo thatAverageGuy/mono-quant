@@ -71,7 +71,7 @@ Advanced API with direct access to quantization functions:
     >>> save_model(q_model, "quantized.safetensors")
 """
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
 from mono_quant.api import quantize
 from mono_quant.config import QuantizationConfig
