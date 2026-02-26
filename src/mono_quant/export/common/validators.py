@@ -1,15 +1,120 @@
-"""Export validation utilities (ONNX and GPTQ)."""
+"""Export validation utilities (ONNX, GPTQ, GGUF)."""
 
 import json
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Union
+from typing import Any, List, Optional, Union
 
 
 class ValidationLevel(str, Enum):
     NONE = "none"
     LOAD = "load"
     FULL = "full"
+
+
+# ---------------------------------------------------------------------------
+# T-028 — Pre/post export validation
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ExportWarning:
+    """A single pre-export validation finding."""
+
+    level: str      # "error" | "warning"
+    message: str
+    check: str      # short identifier, e.g. "no_quantized_layers"
+
+
+def validate_export_pre(
+    model: Any,
+    info: Any,
+    format: str,  # noqa: A002
+) -> List[ExportWarning]:
+    """Run pre-export compatibility checks.
+
+    Args:
+        model:  The nn.Module about to be exported.
+        info:   Optional ``QuantizationInfo`` (may be None).
+        format: Target export format — ``"onnx"``, ``"gptq"``, or ``"gguf"``.
+
+    Returns:
+        List of :class:`ExportWarning`. Empty means all checks passed.
+    """
+    import torch
+    import torch.nn as nn
+
+    findings: List[ExportWarning] = []
+
+    if not isinstance(model, nn.Module):
+        return findings  # type error handled by orchestrator
+
+    # Check 1: model has at least one quantized layer
+    quantized_dtypes = {torch.qint8, torch.quint8, torch.float16}
+    has_quantized = any(
+        p.dtype in quantized_dtypes
+        for p in model.parameters()
+    )
+    if not has_quantized:
+        findings.append(ExportWarning(
+            level="warning",
+            message="Model has no quantized parameters — exporting a plain FP32 model.",
+            check="no_quantized_layers",
+        ))
+
+    # Check 2: GPTQ requires INT4-style quantization; warn for INT8-only models
+    if format == "gptq" and info is not None:
+        dtype = getattr(info, "dtype", None)
+        if dtype == torch.qint8:
+            findings.append(ExportWarning(
+                level="error",
+                message=(
+                    "GPTQ export targets INT4; the model was quantized to INT8. "
+                    "The GPTQExporter will re-quantize weights to INT4 automatically, "
+                    "but accuracy may be lower than a direct INT4 quantization."
+                ),
+                check="int8_gptq_mismatch",
+            ))
+
+    # Check 3: ONNX + INT4 dtype + opset < 21 → warn about representation fallback
+    if format == "onnx" and info is not None:
+        dtype = getattr(info, "dtype", None)
+        # INT4 is represented in mono-quant as qint8 with 4-bit range — no direct signal,
+        # so we check for bits=4 via info fields if available.
+        bits = getattr(info, "bits", None)
+        if bits == 4:
+            findings.append(ExportWarning(
+                level="warning",
+                message=(
+                    "ONNX INT4 requires opset 21+ for native INT4 representation. "
+                    "Lower opsets fall back to INT8 representation in the ONNX graph."
+                ),
+                check="onnx_int4_opset",
+            ))
+
+    return findings
+
+
+def validate_export_post(path: Union[str, Path], format: str) -> None:  # noqa: A002
+    """Run post-export structural validation.
+
+    Dispatches to the format-specific validator.
+
+    Args:
+        path:   Path to the exported artefact (file or directory).
+        format: One of ``"onnx"``, ``"gptq"``, ``"gguf"``.
+
+    Raises:
+        ValueError: If format is unknown.
+    """
+    if format == "onnx":
+        validate_onnx_model(path, level=ValidationLevel.LOAD)
+    elif format == "gptq":
+        validate_gptq_checkpoint_structure(path)
+    elif format == "gguf":
+        validate_gguf_checkpoint(path)
+    else:
+        raise ValueError(f"Unknown format for post-export validation: {format!r}")
 
 
 def validate_onnx_model(
