@@ -169,6 +169,7 @@ def _export_onnx(model: nn.Module, path: Union[str, Path], **options: Any) -> No
         opset=options.get("opset", 14),
         dummy_input=options.get("dummy_input", None),
         validate=options.get("validate", "none"),
+        dynamo=options.get("dynamo", False),
     )
 
 

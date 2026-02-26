@@ -33,6 +33,7 @@ class ONNXExporter(BaseExporter):
         opset: int = 14,
         dummy_input: Optional[torch.Tensor] = None,
         validate: Union[str, ValidationLevel] = "none",
+        dynamo: bool = False,
     ) -> None:
         """Run the full export pipeline.
 
@@ -42,10 +43,14 @@ class ONNXExporter(BaseExporter):
             opset: ONNX opset version. Default 14.
             dummy_input: Optional dummy input tensor. Auto-inferred if None.
             validate: Validation level — "none", "load", or "full".
+            dynamo: Use FX/dynamo tracing instead of TorchScript. Handles
+                transformer models with complex forward signatures (multi-input,
+                optional kwargs, custom nn.Embedding subclasses). Default False.
+                Note: opset_version is ignored by PyTorch when dynamo=True.
 
         Raises:
             ImportError: If onnx is not installed.
-            RuntimeError: If dummy input cannot be inferred.
+            RuntimeError: If dummy input cannot be inferred or tracing fails.
             TypeError: If model is not an nn.Module.
         """
         try:
@@ -101,25 +106,45 @@ class ONNXExporter(BaseExporter):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                try:
-                    torch.onnx.export(
-                        fp32_model,
-                        (dummy_input,),
-                        str(tmp_path),
-                        dynamo=False,
-                        opset_version=opset,
-                        input_names=["input"],
-                        output_names=["output"],
-                        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-                    )
-                except (RuntimeError, TypeError) as e:
-                    raise RuntimeError(
-                        f"ONNX tracing failed: {e}\n\n"
-                        "Hint: this model requires a non-standard input format "
-                        "(e.g., integer token IDs for transformer models). "
-                        "Pass dummy_input explicitly: "
-                        "result.export('out.onnx', dummy_input=torch.zeros(1, 16, dtype=torch.long))"
-                    ) from e
+                if dynamo:
+                    # FX/dynamo path — handles complex forward signatures
+                    # (multi-input, optional kwargs, custom nn.Embedding subclasses)
+                    try:
+                        torch.onnx.export(
+                            fp32_model,
+                            (dummy_input,),
+                            str(tmp_path),
+                            dynamo=True,
+                        )
+                    except (RuntimeError, TypeError) as e:
+                        raise RuntimeError(
+                            f"ONNX tracing failed (dynamo=True): {e}\n\n"
+                            "Hint: provide dummy_input matching your model's "
+                            "forward() signature."
+                        ) from e
+                else:
+                    # TorchScript path (default) — simpler models, opset control
+                    try:
+                        torch.onnx.export(
+                            fp32_model,
+                            (dummy_input,),
+                            str(tmp_path),
+                            dynamo=False,
+                            opset_version=opset,
+                            input_names=["input"],
+                            output_names=["output"],
+                            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+                        )
+                    except (RuntimeError, TypeError) as e:
+                        raise RuntimeError(
+                            f"ONNX tracing failed: {e}\n\n"
+                            "Hint: this model requires a non-standard input format "
+                            "(e.g., integer token IDs for transformer models). "
+                            "Pass dummy_input explicitly: "
+                            "result.export('out.onnx', dummy_input=torch.zeros(1, 16, dtype=torch.long)) "
+                            "or use dynamo=True for transformer models: "
+                            "result.export('out.onnx', dynamo=True)"
+                        ) from e
 
             # Step 6: Load proto, insert QDQ nodes
             model_proto = onnx.load(str(tmp_path))

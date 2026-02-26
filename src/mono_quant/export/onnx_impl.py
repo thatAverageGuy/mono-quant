@@ -15,6 +15,7 @@ def export_to_onnx_impl(
     opset: int = 14,
     dummy_input: Optional[torch.Tensor] = None,
     validate: str = "none",
+    dynamo: bool = False,
     **kwargs: Any,
 ) -> None:
     """Export a quantized model to ONNX format.
@@ -27,6 +28,7 @@ def export_to_onnx_impl(
         opset: ONNX opset version. Default 14.
         dummy_input: Optional dummy input tensor. Auto-inferred if None.
         validate: Validation level — "none", "load", or "full".
+        dynamo: Use FX/dynamo tracing. Handles transformer models. Default False.
         **kwargs: Reserved for future use.
     """
     exporter = ONNXExporter()
@@ -36,4 +38,5 @@ def export_to_onnx_impl(
         opset=opset,
         dummy_input=dummy_input,
         validate=validate,
+        dynamo=dynamo,
     )

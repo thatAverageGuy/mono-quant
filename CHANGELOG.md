@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - Unreleased
 
+### Added
+- `dynamo=True` parameter on `ONNXExporter.export()`, `export_to_onnx_impl()`, and
+  `result.export()` — uses FX/torch.export tracing instead of TorchScript; handles
+  transformer models with complex forward signatures (multi-input, optional kwargs,
+  custom positional embedding forwards); default remains `False` for backward
+  compatibility (T-040)
+- `onnxscript>=0.1` added to `[onnx]` optional dependency group (required for
+  `dynamo=True` path) (T-040)
+
 ### Fixed
 - `_quantize_int8_model` and `_quantize_sequential_module` now use exact-type matching
   (`type(module) is nn.Embedding`) to detect embedding layers; previously `isinstance`

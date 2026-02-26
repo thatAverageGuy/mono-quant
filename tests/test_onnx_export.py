@@ -170,6 +170,59 @@ def test_onnx_export_tracing_error_is_graceful(tmp_path: Path) -> None:
         exporter.export(RaisesTypeError(), out, dummy_input=long_dummy)
 
 
+def test_export_onnx_dynamo_mlp_succeeds(tmp_path: Path) -> None:
+    """T-040: dynamo=True exports a simple MLP to a valid ONNX file."""
+    pytest.importorskip("onnxscript", reason="onnxscript not installed; pip install mono-quant[onnx]")
+    q_model = _make_int8_model()
+    out = tmp_path / "model_dynamo.onnx"
+    from mono_quant.export.onnx import ONNXExporter
+
+    exporter = ONNXExporter()
+    exporter.export(q_model, out, dynamo=True)
+    assert out.exists(), f"Expected {out} to exist after dynamo export"
+
+
+def test_export_onnx_dynamo_embedding_model_succeeds(tmp_path: Path) -> None:
+    """T-040: dynamo=True handles Embedding+Linear model with LongTensor input."""
+    pytest.importorskip("onnxscript", reason="onnxscript not installed; pip install mono-quant[onnx]")
+    from mono_quant import dynamic_quantize
+    from mono_quant.export.onnx import ONNXExporter
+
+    class EmbeddingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(100, 32)
+            self.fc = nn.Linear(32, 10)
+
+        def forward(self, x):
+            return self.fc(self.embed(x))
+
+    model = EmbeddingModel()
+    q_model, _ = dynamic_quantize(model)
+    out = tmp_path / "embed_dynamo.onnx"
+    dummy = torch.zeros(1, 16, dtype=torch.long)
+
+    exporter = ONNXExporter()
+    exporter.export(q_model, out, dummy_input=dummy, dynamo=True)
+    assert out.exists(), f"Expected {out} to exist after dynamo export"
+
+
+def test_export_onnx_dynamo_qdq_nodes_present(tmp_path: Path) -> None:
+    """T-040: dynamo-exported graph contains QDQ nodes — QDQ inserter works on both paths."""
+    pytest.importorskip("onnxscript", reason="onnxscript not installed; pip install mono-quant[onnx]")
+    q_model = _make_int8_model()
+    out = tmp_path / "model_dynamo_qdq.onnx"
+    from mono_quant.export.onnx import ONNXExporter
+
+    exporter = ONNXExporter()
+    exporter.export(q_model, out, dynamo=True)
+
+    model_proto = onnx.load(str(out))
+    op_types = {node.op_type for node in model_proto.graph.node}
+    assert "QuantizeLinear" in op_types, f"QuantizeLinear not found in dynamo graph. Ops: {op_types}"
+    assert "DequantizeLinear" in op_types, f"DequantizeLinear not found in dynamo graph. Ops: {op_types}"
+
+
 def test_export_onnx_raises_without_onnx_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
