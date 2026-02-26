@@ -1,4 +1,4 @@
-"""Export entry points for mono-quant (ONNX, GPTQ)."""
+"""Export entry points for mono-quant (ONNX, GPTQ, GGUF, unified orchestrator)."""
 
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -97,3 +97,15 @@ def export_to_onnx(
         validate=validate,
         **kwargs,
     )
+
+
+# Unified orchestrator — re-exported for convenience
+from mono_quant.export.orchestrator import export_model, list_formats  # noqa: E402
+
+__all__ = [
+    "export_to_gptq",
+    "export_to_gguf",
+    "export_to_onnx",
+    "export_model",
+    "list_formats",
+]

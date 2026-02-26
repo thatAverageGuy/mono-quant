@@ -151,6 +151,72 @@ class QuantizationResult:
 
         return validate_quantization(original, self.model, on_failure=on_failure)
 
+    def convert(self, bits: int, **kwargs) -> "QuantizationResult":
+        """Convert the quantized model to a different bit-width.
+
+        Uses dynamic re-quantization: dequantize → dynamic_quantize.
+        No calibration data required.
+
+        This operation degrades accuracy compared with a fresh quantization
+        from FP32. A warning with the resulting SQNR is emitted automatically.
+
+        Args:
+            bits: Target bit-width — 4, 8, or 16.
+            **kwargs: Forwarded to :func:`mono_quant.core.dynamic_quantize`.
+
+        Returns:
+            A new :class:`QuantizationResult` at the requested bit-width.
+
+        Examples:
+            >>> result8 = quantize(model, bits=8, dynamic=True)
+            >>> result4 = result8.convert(bits=4)
+            >>> result4.save("model_int4.pt")
+        """
+        import warnings as _warnings
+
+        from mono_quant.api.quantize import quantize
+        from mono_quant.core.quantizers import dequantize_model
+
+        fp32_model = dequantize_model(self.model)
+        new_result = quantize(fp32_model, bits=bits, dynamic=True, **kwargs)
+
+        sqnr = new_result.info.sqnr_db
+        sqnr_str = f"{sqnr:.2f} dB" if sqnr is not None else "N/A"
+        _warnings.warn(
+            f"result.convert(bits={bits}): dynamic re-quantization from "
+            f"{self.info.dtype} — SQNR after conversion: {sqnr_str}. "
+            "For better accuracy, re-quantize from the original FP32 model.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+        return new_result
+
+    def export(
+        self,
+        path: Union[str, Path],
+        format: Optional[str] = None,  # noqa: A002
+        **kwargs,
+    ) -> None:
+        """Export the quantized model to the specified format.
+
+        Delegates to the unified :func:`mono_quant.export.orchestrator.export_model`.
+
+        Args:
+            path:   Destination path. Format auto-detected from extension when
+                    *format* is None.
+            format: ``"onnx"``, ``"gptq"``, or ``"gguf"``. Optional.
+            **kwargs: Format-specific options.
+
+        Examples:
+            >>> result.export("model.onnx")
+            >>> result.export("./gptq_dir/", format="gptq", group_size=64)
+            >>> result.export("./gguf_dir/", format="gguf")
+        """
+        from mono_quant.export.orchestrator import export_model
+
+        export_model(self.model, path, format=format, info=self.info, **kwargs)
+
     def __bool__(self) -> bool:
         """
         Boolean conversion for truthiness checks.

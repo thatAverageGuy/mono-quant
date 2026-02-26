@@ -88,6 +88,28 @@ from mono_quant.io.validation import (
     validate_quantization,
 )
 
+def export_model(model, path, format=None, **kwargs):  # noqa: A002
+    """Export a model to any supported format via the unified orchestrator.
+
+    Args:
+        model:  Any nn.Module (quantized or plain FP32).
+        path:   Output path. Format inferred from extension if *format* is None.
+        format: ``"onnx"``, ``"gptq"``, or ``"gguf"``. Optional.
+        **kwargs: Format-specific options (opset, group_size, sym, architecture…).
+
+    See Also:
+        :func:`mono_quant.export.orchestrator.export_model` for full docs.
+    """
+    from mono_quant.export.orchestrator import export_model as _export_model
+    return _export_model(model, path, format=format, **kwargs)
+
+
+def list_formats():
+    """Return a dict of supported export formats and their descriptions."""
+    from mono_quant.export.orchestrator import list_formats as _list_formats
+    return _list_formats()
+
+
 def export_to_gptq(model, path, group_size=128, sym=False, **kwargs):
     """Export a model to GPTQ INT4 format (AutoGPTQ V1 / vLLM-compatible).
 
@@ -146,6 +168,8 @@ __all__ = [
     "__version__",
     # Unified API
     "quantize",
+    "export_model",
+    "list_formats",
     "export_to_onnx",
     "export_to_gptq",
     "export_to_gguf",
