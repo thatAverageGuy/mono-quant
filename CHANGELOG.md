@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `export_to_gguf(model, path, quantization_type, architecture, config_path, model_params)`
+  — GGUF v3 export for llama.cpp; Q4_K_S quantization; supports LLaMA, Mistral, Qwen2,
+  DeepSeek-V2, GPT-2, and generic architectures; writes `model.gguf` to output directory
+  (T-022, T-023, T-024)
+- `monoquant export-gguf` CLI command — `--model`, `--output`, `--quantization-type`,
+  `--architecture`, `--config`, `--model-param` options (T-024)
+- `validate_gguf_checkpoint(path)` in `mono_quant.export.common.validators` — gguf-py
+  structural check; verifies magic, tensor count, `general.architecture` KV key (T-025)
+- `[project.optional-dependencies] gguf` in `pyproject.toml` — `gguf>=0.1` (T-025)
+- `GGUFWriter` in `mono_quant.export.gguf.writer` — pure-stdlib GGUF v3 binary serializer
+  with typed KV add methods and 32-byte-aligned tensor data section (T-022)
 - `export_to_gptq(model, path, group_size, sym)` — GPTQ INT4 export in AutoGPTQ V1
   format; writes `model.safetensors` (qweight, qzeros, scales, g_idx) and
   `quantize_config.json`; accepts any nn.Module (quantized or plain FP32) (T-018, T-019)

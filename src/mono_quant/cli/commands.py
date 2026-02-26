@@ -600,6 +600,111 @@ def export_gptq_cmd(
         raise _click.ClickException(f"Export failed: {e}")
 
 
+# export_gguf_cmd — Export a model to GGUF format for llama.cpp
+@_click.command(name="export-gguf")
+@_click.option(
+    "--model",
+    "-m",
+    "model_path",
+    required=True,
+    type=_click.Path(exists=True),
+    help="Path to model file (.pt saved with torch.save)",
+)
+@_click.option(
+    "--output",
+    "-o",
+    "output_path",
+    required=True,
+    type=_click.Path(),
+    help="Output directory for model.gguf",
+)
+@_click.option(
+    "--quantization-type",
+    default="q4_k_s",
+    show_default=True,
+    type=_click.Choice(["q4_k_s"]),
+    help="GGUF quantization type",
+)
+@_click.option(
+    "--architecture",
+    default=None,
+    help="GGUF architecture (e.g. llama, qwen2, gpt2). Auto-detected if not set.",
+)
+@_click.option(
+    "--config",
+    "config_path",
+    default=None,
+    type=_click.Path(exists=True),
+    help="Path to HuggingFace config.json for architecture metadata",
+)
+@_click.option(
+    "--model-param",
+    "model_params_raw",
+    multiple=True,
+    metavar="KEY=VALUE",
+    help="Model hyperparameter override (e.g. --model-param num_hidden_layers=32). Repeatable.",
+)
+@_click.pass_obj
+def export_gguf_cmd(
+    obj: dict,
+    model_path: str,
+    output_path: str,
+    quantization_type: str,
+    architecture: Optional[str],
+    config_path: Optional[str],
+    model_params_raw: tuple,
+) -> None:
+    """Export a model to GGUF format for use with llama.cpp.
+
+    Writes model.gguf to the output directory.
+    The model file must be saved with torch.save(model, path).
+
+    Examples:
+        # Auto-detect architecture from config.json
+        monoquant export-gguf -m model.pt -o ./gguf_dir/ --config ./config.json
+
+        # Explicit architecture + manual params
+        monoquant export-gguf -m model.pt -o ./gguf_dir/ --architecture llama \\
+            --model-param num_hidden_layers=32 --model-param hidden_size=4096
+    """
+    from mono_quant import export_to_gguf
+
+    # Parse --model-param KEY=VALUE pairs
+    model_params: dict = {}
+    for raw in model_params_raw:
+        if "=" not in raw:
+            raise _click.BadParameter(f"Expected KEY=VALUE, got: {raw!r}", param_hint="--model-param")
+        k, v = raw.split("=", 1)
+        # Try to coerce value to int, then float, then keep as string
+        try:
+            model_params[k] = int(v)
+        except ValueError:
+            try:
+                model_params[k] = float(v)
+            except ValueError:
+                model_params[k] = v
+
+    _click.echo(f"Loading model: {model_path}")
+    try:
+        model = torch.load(model_path, weights_only=False)
+    except Exception as e:
+        raise _click.ClickException(f"Failed to load model: {e}")
+
+    _click.echo(f"Exporting to GGUF: {output_path}")
+    try:
+        export_to_gguf(
+            model,
+            output_path,
+            quantization_type=quantization_type,
+            architecture=architecture,
+            config_path=config_path,
+            model_params=model_params if model_params else None,
+        )
+        _click.echo(f"Export complete: {output_path}/model.gguf")
+    except Exception as e:
+        raise _click.ClickException(f"Export failed: {e}")
+
+
 __all__ = [
     "quantize_cmd",
     "validate_cmd",
@@ -607,4 +712,5 @@ __all__ = [
     "compare_cmd",
     "calibrate_cmd",
     "export_gptq_cmd",
+    "export_gguf_cmd",
 ]

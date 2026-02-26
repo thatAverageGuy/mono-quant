@@ -19,6 +19,8 @@ Mono Quant is a simple, reliable model quantization package for PyTorch with min
 - **Flexible Calibration** - Dynamic (no data) or static (with calibration data)
 - **Robust Validation** - SQNR metrics, size comparison, and accuracy warnings
 - **ONNX Export** - Export quantized models to ONNX with QDQ nodes (optional)
+- **GGUF Export** - Export models to GGUF format for llama.cpp (Q4_K_S, optional)
+- **GPTQ Export** - Export models to GPTQ INT4 format for vLLM/SGLang (optional)
 - **Dual Interface** - Python API for automation, CLI for CI/CD
 - **Build-Phase Only** - Quantize during build, deploy lightweight models
 
@@ -29,6 +31,9 @@ pip install mono-quant
 
 # With ONNX export support
 pip install mono-quant[onnx]
+
+# With GGUF export validation support (gguf-py)
+pip install mono-quant[gguf]
 ```
 
 ### Requirements
@@ -117,6 +122,29 @@ export_to_onnx(q_model, "model.onnx", opset=14, validate="load")
 ```bash
 # CLI
 monoquant export --model q_model.pt --output model.onnx --validate load
+```
+
+### GGUF Export for llama.cpp (Requires `pip install mono-quant[gguf]` for validation)
+
+```python
+from mono_quant import quantize, export_to_gguf
+
+result = quantize(model, bits=8, dynamic=True)
+
+# Export to GGUF Q4_K_S format
+export_to_gguf(
+    result.model,
+    "./gguf_output/",
+    config_path="./config.json",       # HuggingFace config.json (optional)
+    architecture="llama",              # auto-detected from config if omitted
+)
+# Writes: ./gguf_output/model.gguf
+```
+
+```bash
+# CLI
+monoquant export-gguf --model q_model.pt --output ./gguf_output/ \
+    --config ./config.json --architecture llama
 ```
 
 ## Documentation

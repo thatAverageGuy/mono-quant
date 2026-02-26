@@ -61,6 +61,50 @@ def validate_onnx_model(
         session.run(None, {inputs[0].name: dummy})
 
 
+def validate_gguf_checkpoint(path: Union[str, Path]) -> None:
+    """Validate a GGUF checkpoint using gguf-py (Level 1 automated check).
+
+    Checks:
+    - File exists
+    - gguf-py can open and parse the file without error
+    - File contains at least one tensor
+    - general.architecture KV key is present
+
+    Args:
+        path: Path to the .gguf file.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the file fails structural validation.
+        ImportError: If gguf is not installed (with install hint).
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"GGUF file not found: {path}")
+
+    try:
+        import gguf  # noqa: F401
+    except ImportError:
+        raise ImportError(
+            "GGUF validation requires gguf-py. "
+            "Install with: pip install mono-quant[gguf]"
+        )
+
+    try:
+        reader = gguf.GGUFReader(str(path))
+    except Exception as e:
+        raise ValueError(f"gguf-py failed to parse {path}: {e}") from e
+
+    if len(reader.tensors) == 0:
+        raise ValueError(f"GGUF file contains no tensors: {path}")
+
+    kv_keys = {field.name for field in reader.fields.values()}
+    if "general.architecture" not in kv_keys:
+        raise ValueError(
+            f"GGUF file missing required KV key 'general.architecture': {path}"
+        )
+
+
 _REQUIRED_CONFIG_FIELDS = {"bits", "group_size", "desc_act", "sym", "quant_method"}
 
 

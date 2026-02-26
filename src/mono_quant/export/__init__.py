@@ -31,6 +31,33 @@ def export_to_gptq(
     export_to_gptq_impl(model, path, group_size=group_size, sym=sym)
 
 
+def export_to_gguf(
+    model: nn.Module,
+    path: Union[str, Path],
+    quantization_type: str = "q4_k_s",
+    **kwargs: Any,
+) -> None:
+    """Export a model to GGUF format for use with llama.cpp.
+
+    Args:
+        model:             Any nn.Module (quantized or plain FP32).
+        path:              Output directory. model.gguf written inside.
+        quantization_type: Quantization format. Currently only "q4_k_s".
+        **kwargs:          architecture, config_path, model_params — see GGUFExporter.
+
+    Raises:
+        TypeError: If model is not an nn.Module.
+    """
+    from mono_quant.export.gguf_impl import export_to_gguf_impl
+
+    export_to_gguf_impl(
+        model,
+        path,
+        quantization_type=quantization_type,
+        **{k: v for k, v in kwargs.items() if k in ("architecture", "config_path", "model_params")},
+    )
+
+
 def export_to_onnx(
     model: nn.Module,
     path: Union[str, Path],

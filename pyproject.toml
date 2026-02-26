@@ -36,6 +36,9 @@ onnx = [
     "onnx>=1.14",
     "onnxruntime>=1.16",
 ]
+gguf = [
+    "gguf>=0.1",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

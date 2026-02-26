@@ -1,47 +1,42 @@
 # CONTEXT
 
 ## Current State
-
-**Task:** T-021 — DONE (Phase 6 complete)
-**Phase:** Phase 6 (GPTQ Export) — COMPLETE
+**Task:** T-022–T-025 — DONE (Phase 7 complete)
+**Phase:** Phase 7 (GGUF Binary Export) — COMPLETE
 **Branch:** dev
-**Last Commit:** pending approval
+**Last Commit:** pending push
 **Date:** 2026-02-26
 
 ## Previous Session Summary
-
-Phase 5 ONNX export (T-034–T-037) completed in previous session. 42/42 tests passing.
+Phase 6 (GPTQ Export, T-018–T-021) completed and committed in previous session.
+Commit: `12d6f5c`
 
 ## Current Task State
 
-Phase 6 GPTQ Export — fully implemented, 53/53 tests passing:
+Phase 7 GGUF Export — fully implemented, 66/66 tests passing (9 skipped: gguf-py not installed):
 
 | Task | Description | Status |
 |------|-------------|--------|
-| T-018 | GPTQ packing math + GPTQExporter (AutoGPTQ V1) | DONE |
-| T-019 | Public API + CLI export-gptq + 11 tests | DONE |
-| T-020 | AWQ export | DROPPED (requires Hessian calibration, not a format wrapper) |
-| T-021 | Manual vLLM procedure + validate_gptq_checkpoint_structure | DONE |
+| T-022 | GGUFWriter — GGUF v3 binary serializer | DONE |
+| T-023 | Q4_K_S quantization — 144-byte block format | DONE |
+| T-024 | GGUFExporter + arch maps + public API + CLI + 22 tests | DONE |
+| T-025 | validate_gguf_checkpoint + manual llama.cpp procedure | DONE |
 
-**Test suite:** 53/53 passing (42 pre-existing + 11 new GPTQ tests)
+**Test suite:** 66 passed, 9 skipped (gguf-py), 0 failed
 
-Notable bugs fixed during implementation:
-- `_pack_int4_*` returned int64 on Windows due to sum promotion — fixed with explicit `.to(torch.int32)`
-- `permute()` outputs non-contiguous tensors rejected by safetensors — fixed with `.contiguous()`
-- Plan's 1% reconstruction error threshold unrealistic for INT4 — corrected to 15%
+Architectures supported: llama, mistral, qwen2, deepseek_v2, gpt2, generic fallback
+Known issue: llama.cpp manual validation not yet run (no binary available in CI)
 
 ## Next Steps
 
-1. [ ] Get user approval for commit
-2. [ ] Single commit: T-018–T-021 GPTQ export implementation
-3. [ ] Push to dev
-4. [ ] Begin Phase 7 planning: GGUF export (T-022–T-025)
+1. [ ] Commit and push T-022–T-025 to dev
+2. [ ] Begin Phase 8 planning: Unified Export API (T-026–T-029)
 
 ## Open Questions / Decisions Pending
 
-- Phase 7 (T-022–T-025): GGUF export — not started
-- vLLM manual test (T-021) requires GPU + vLLM install; procedure documented in
-  `docs/dev/tasks/T-021/MANUAL_TEST.md` but not yet executed
+- Phase 8 (T-026–T-029): Unified Export API — not started; DETAIL.md stubs exist
+- llama.cpp manual test (T-025) requires llama.cpp binary; procedure documented in
+  `docs/dev/tasks/T-025/IMPL_LOG.md` but not yet executed
 
 ## Blockers
 
@@ -50,8 +45,8 @@ None.
 ## Quick Links
 
 - Tasks index: docs/dev/tasks/TASKS.md
-- T-018 log: docs/dev/tasks/T-018/IMPL_LOG.md
-- T-019 log: docs/dev/tasks/T-019/IMPL_LOG.md
-- T-021 log: docs/dev/tasks/T-021/IMPL_LOG.md
-- vLLM test: docs/dev/tasks/T-021/MANUAL_TEST.md
+- T-022 log: docs/dev/tasks/T-022/IMPL_LOG.md
+- T-023 log: docs/dev/tasks/T-023/IMPL_LOG.md
+- T-024 log: docs/dev/tasks/T-024/IMPL_LOG.md
+- T-025 log: docs/dev/tasks/T-025/IMPL_LOG.md
 - Architecture: docs/dev/ARCHITECTURE.md

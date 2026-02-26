@@ -79,14 +79,14 @@
 | T-019 | Public API + CLI export-gptq command + 11 tests | DONE | T-018 | docs/dev/tasks/T-019/ |
 | T-021 | Manual vLLM procedure + validate_gptq_checkpoint_structure | DONE | T-019 | docs/dev/tasks/T-021/ |
 
-## Pending (v2.0 Phase 7 — GGUF Export)
+## Completed (v2.0 Phase 7 — GGUF Export)
 
 | ID | Summary | Status | Depends On | Detail |
 |----|---------|--------|------------|--------|
-| T-022 | GGUF binary format writer (header + KV metadata) | TODO | T-021 | docs/dev/tasks/T-022/ |
-| T-023 | Q4_K_M and Q4_K_S quantization type support | TODO | T-022 | docs/dev/tasks/T-023/ |
-| T-024 | Architecture-specific tensor naming conventions | TODO | T-022 | docs/dev/tasks/T-024/ |
-| T-025 | llama.cpp validation testing | TODO | T-023, T-024 | docs/dev/tasks/T-025/ |
+| T-022 | GGUF binary format writer (header + KV metadata) | DONE | T-021 | docs/dev/tasks/T-022/ |
+| T-023 | Q4_K_S quantization type support | DONE | T-022 | docs/dev/tasks/T-023/ |
+| T-024 | GGUFExporter, arch maps, public API, CLI, tests | DONE | T-022, T-023 | docs/dev/tasks/T-024/ |
+| T-025 | gguf-py validation + manual llama.cpp procedure | DONE | T-023, T-024 | docs/dev/tasks/T-025/ |
 
 ## Pending (v2.0 Phase 8 — Unified Export API)
 
@@ -139,8 +139,8 @@
 | Audit fixes (medium/calibration) | v1.2 | BF-005, BF-013, CL-001 | ✅ Done |
 | Calibration & observer fixes | v1.2 | T-031, T-032 | ✅ Done |
 | 5 — ONNX Export | v2.0 | T-034 to T-037 (T-014–T-017 were phantom) | ✅ Done |
-| 6 — GPTQ/AWQ Export | v2.0 | T-018 to T-021 | ☐ TODO |
-| 7 — GGUF Binary Export | v2.0 | T-022 to T-025 | ☐ TODO |
+| 6 — GPTQ/AWQ Export | v2.0 | T-018 to T-021 | ✅ Done |
+| 7 — GGUF Binary Export | v2.0 | T-022 to T-025 | ✅ Done |
 | 8 — Unified Export API | v2.0 | T-026 to T-029 | ☐ TODO |
 
 ---

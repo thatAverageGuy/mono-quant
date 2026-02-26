@@ -105,6 +105,24 @@ def export_to_gptq(model, path, group_size=128, sym=False, **kwargs):
     return _export_gptq(model, path, group_size=group_size, sym=sym)
 
 
+def export_to_gguf(model, path, **kwargs):
+    """Export a model to GGUF format for use with llama.cpp.
+
+    Requires optional GGUF dependencies for validation:
+        pip install mono-quant[gguf]
+
+    Args:
+        model: Any nn.Module (quantized or plain FP32).
+        path:  Output directory. model.gguf written inside.
+        **kwargs: quantization_type, architecture, config_path, model_params.
+
+    Raises:
+        TypeError: If model is not an nn.Module.
+    """
+    from mono_quant.export import export_to_gguf as _export
+    return _export(model, path, **kwargs)
+
+
 def export_to_onnx(model, path, **kwargs):
     """Export a quantized model to ONNX format with QDQ nodes.
 
@@ -130,6 +148,7 @@ __all__ = [
     "quantize",
     "export_to_onnx",
     "export_to_gptq",
+    "export_to_gguf",
     # Configuration
     "QuantizationConfig",
     # Quantization functions
