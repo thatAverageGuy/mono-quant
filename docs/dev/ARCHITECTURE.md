@@ -1,7 +1,7 @@
 # Architecture: Mono Quant
 
 **Version:** 1.1 (current) / v2.0 in progress
-**Last Updated:** 2026-02-24
+**Last Updated:** 2026-02-26
 
 ## System Overview
 
@@ -57,15 +57,30 @@ The user owns model loading and serving. mono-quant owns quantization only.
 └────────────────────────────────────────────────────────────────┘
          │ (v2.0 addition)
 ┌────────▼──────────────────────────────────────────────────────┐
-│                      Export Layer                              │
+│                      Export Layer (Phase 8)                    │
 │  export/                                                        │
-│  ├ __init__.py      — export_to_onnx() (public)               │
+│  ├ __init__.py      — re-exports all format functions + orch.  │
+│  ├ orchestrator.py  — export_model(), list_formats(),          │
+│  │                    _detect_format() — unified dispatch       │
 │  ├ base.py          — BaseExporter abstract class              │
-│  ├ onnx.py          — ONNXExporter (Phase 5, complete)         │
+│  ├ onnx.py          — ONNXExporter (Phase 5)                   │
 │  ├ onnx_impl.py     — thin wrapper                             │
+│  ├ gptq.py          — GPTQExporter (Phase 6)                   │
+│  ├ gptq_impl.py     — thin wrapper                             │
+│  ├ gguf.py          — re-export of gguf/exporter.py            │
+│  ├ gguf_impl.py     — thin wrapper                             │
+│  ├ gguf/            — GGUFExporter, GGUFWriter, arch_maps      │
 │  └ common/                                                      │
 │      ├ qdq_inserter.py  — QDQ node insertion utilities         │
-│      └ validators.py    — validate_onnx_load/inference         │
+│      └ validators.py    — ExportWarning, validate_export_pre,  │
+│                           validate_export_post,                 │
+│                           validate_onnx_model,                  │
+│                           validate_gptq_checkpoint_structure,   │
+│                           validate_gguf_checkpoint              │
+└────────────────────────────────────────────────────────────────┘
+│  (Phase 8 additions to api/result.py)                          │
+│  result.export(path, format, **kwargs) — delegates to orch.   │
+│  result.convert(bits, **kwargs)        — dynamic re-quantize  │
 └────────────────────────────────────────────────────────────────┘
 ```
 

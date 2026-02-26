@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `export_model(model, path, format, **options)` — unified export orchestrator; auto-detects
+  format from path extension (`.onnx` → ONNX, `.gguf` → GGUF, directory → GPTQ); dispatches
+  to existing ONNX/GPTQ/GGUF exporters (T-026)
+- `list_formats()` — returns dict of supported export formats and descriptions (T-026)
+- `result.export(path, format, **kwargs)` — convenience method on `QuantizationResult`;
+  delegates to `export_model` (T-026)
+- `result.convert(bits, **kwargs)` — dynamic re-quantization to different bit-width via
+  `dequantize_model → quantize(..., dynamic=True)`; emits UserWarning with SQNR impact (T-029)
+- `ExportWarning` dataclass in `mono_quant.export.common.validators` — `level`, `message`,
+  `check` fields (T-028)
+- `validate_export_pre(model, info, format)` — pre-export compatibility checks: no-quantized-
+  layers warning, INT8→GPTQ error, ONNX INT4 opset warning (T-028)
+- `validate_export_post(path, format)` — post-export structural validation; dispatches to
+  existing format-specific validators (T-028)
+- `monoquant export` — unified CLI export command (replaces `export`, `export-gptq`,
+  `export-gguf`); supports `--format`, `--list-formats`, and all per-format options (T-027)
+- `monoquant convert INPUT OUTPUT --bits N` — CLI command for dynamic bit-width conversion (T-029)
+- T-038 deferred task stub (`docs/dev/tasks/T-038/DETAIL.md`) — calibration-based conversion
+
+### Changed
+- `monoquant export-gptq` and `monoquant export-gguf` CLI commands **removed** — functionality
+  unified into `monoquant export --format gptq/gguf` (T-027; Python API unchanged)
+
 - `export_to_gguf(model, path, quantization_type, architecture, config_path, model_params)`
   — GGUF v3 export for llama.cpp; Q4_K_S quantization; supports LLaMA, Mistral, Qwen2,
   DeepSeek-V2, GPT-2, and generic architectures; writes `model.gguf` to output directory

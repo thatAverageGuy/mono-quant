@@ -88,14 +88,20 @@
 | T-024 | GGUFExporter, arch maps, public API, CLI, tests | DONE | T-022, T-023 | docs/dev/tasks/T-024/ |
 | T-025 | gguf-py validation + manual llama.cpp procedure | DONE | T-023, T-024 | docs/dev/tasks/T-025/ |
 
-## Pending (v2.0 Phase 8 — Unified Export API)
+## Completed (v2.0 Phase 8 — Unified Export API)
 
 | ID | Summary | Status | Depends On | Detail |
 |----|---------|--------|------------|--------|
-| T-026 | Python export API on QuantizationResult | TODO | T-021, T-025 | docs/dev/tasks/T-026/ |
-| T-027 | CLI unified export command | TODO | T-026 | docs/dev/tasks/T-027/ |
-| T-028 | Export validation and runtime compatibility checks | TODO | T-026 | docs/dev/tasks/T-028/ |
-| T-029 | Format conversion between quantization types | TODO | T-026 | docs/dev/tasks/T-029/ |
+| T-026 | Python export API — orchestrator + result.export() | DONE | T-021, T-025 | docs/dev/tasks/T-026/ |
+| T-027 | CLI unified export command (replaces export/export-gptq/export-gguf) | DONE | T-026 | docs/dev/tasks/T-027/ |
+| T-028 | Export pre/post validation (ExportWarning, validate_export_pre/post) | DONE | T-026 | docs/dev/tasks/T-028/ |
+| T-029 | result.convert(bits) + monoquant convert CLI command | DONE | T-026 | docs/dev/tasks/T-029/ |
+
+## Pending (Future)
+
+| ID | Summary | Status | Depends On | Detail |
+|----|---------|--------|------------|--------|
+| T-038 | Calibration-based conversion (result.convert with calibration_data) | TODO | T-029 | docs/dev/tasks/T-038/ |
 
 ---
 
@@ -141,7 +147,7 @@
 | 5 — ONNX Export | v2.0 | T-034 to T-037 (T-014–T-017 were phantom) | ✅ Done |
 | 6 — GPTQ/AWQ Export | v2.0 | T-018 to T-021 | ✅ Done |
 | 7 — GGUF Binary Export | v2.0 | T-022 to T-025 | ✅ Done |
-| 8 — Unified Export API | v2.0 | T-026 to T-029 | ☐ TODO |
+| 8 — Unified Export API | v2.0 | T-026 to T-029 | ✅ Done |
 
 ---
 
@@ -156,4 +162,4 @@
 ---
 
 *Status values: `TODO` → `IN_PROGRESS` → `DONE` | `BLOCKED`*
-*Updated: 2026-02-25 (audit findings added)*
+*Updated: 2026-02-26 (Phase 8 complete)*

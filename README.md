@@ -21,6 +21,7 @@ Mono Quant is a simple, reliable model quantization package for PyTorch with min
 - **ONNX Export** - Export quantized models to ONNX with QDQ nodes (optional)
 - **GGUF Export** - Export models to GGUF format for llama.cpp (Q4_K_S, optional)
 - **GPTQ Export** - Export models to GPTQ INT4 format for vLLM/SGLang (optional)
+- **Unified Export API** - `result.export(path)` or `monoquant export` for all formats
 - **Dual Interface** - Python API for automation, CLI for CI/CD
 - **Build-Phase Only** - Quantize during build, deploy lightweight models
 
@@ -103,48 +104,52 @@ result = quantize(
 )
 ```
 
-### ONNX Export (Requires `pip install mono-quant[onnx]`)
+### Export (ONNX, GPTQ, GGUF)
+
+The unified `result.export()` method exports to any format. Format is auto-detected from
+the output path extension, or specify `format=` explicitly.
 
 ```python
-from mono_quant import quantize, export_to_onnx
-
-# Quantize first
 result = quantize(model, bits=8, dynamic=True)
-q_model = result.model
 
-# Export to ONNX with QDQ nodes
-export_to_onnx(q_model, "model.onnx")
+# ONNX (requires: pip install mono-quant[onnx])
+result.export("model.onnx")
+result.export("model.onnx", opset=17, validate="load")
 
-# With validation
-export_to_onnx(q_model, "model.onnx", opset=14, validate="load")
+# GPTQ — AutoGPTQ V1 / vLLM-compatible
+result.export("./gptq_dir/", format="gptq", group_size=128)
+
+# GGUF — llama.cpp (requires: pip install mono-quant[gguf] for validation)
+result.export("model.gguf")
+result.export("./gguf_dir/", format="gguf", config_path="./config.json", architecture="llama")
+```
+
+Standalone function:
+
+```python
+from mono_quant import export_model, list_formats
+
+print(list_formats())   # {'onnx': '...', 'gptq': '...', 'gguf': '...'}
+export_model(model, "model.onnx")
 ```
 
 ```bash
-# CLI
-monoquant export --model q_model.pt --output model.onnx --validate load
+# CLI — unified export command (format auto-detected from extension)
+monoquant export -m q_model.pt -o model.onnx
+monoquant export -m q_model.pt -o ./gptq_dir/ --format gptq --group-size 64
+monoquant export -m q_model.pt -o model.gguf --config ./config.json
+monoquant export --list-formats
 ```
 
-### GGUF Export for llama.cpp (Requires `pip install mono-quant[gguf]` for validation)
+### Bit-Width Conversion
 
 ```python
-from mono_quant import quantize, export_to_gguf
-
-result = quantize(model, bits=8, dynamic=True)
-
-# Export to GGUF Q4_K_S format
-export_to_gguf(
-    result.model,
-    "./gguf_output/",
-    config_path="./config.json",       # HuggingFace config.json (optional)
-    architecture="llama",              # auto-detected from config if omitted
-)
-# Writes: ./gguf_output/model.gguf
+result8 = quantize(model, bits=8, dynamic=True)
+result4 = result8.convert(bits=4)   # dynamic re-quantization, no calibration needed
 ```
 
 ```bash
-# CLI
-monoquant export-gguf --model q_model.pt --output ./gguf_output/ \
-    --config ./config.json --architecture llama
+monoquant convert q_model_int8.pt q_model_int4.pt --bits 4
 ```
 
 ## Documentation

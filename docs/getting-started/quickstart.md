@@ -109,6 +109,47 @@ loaded_model = load_model("my_model_quantized.pt")
 output = loaded_model(input_tensor)
 ```
 
+## Step 6: Export
+
+Once quantized, export to any supported inference format:
+
+```python
+# ONNX — auto-detected from .onnx extension
+result.export("model.onnx")
+
+# ONNX with explicit options
+result.export("model.onnx", format="onnx", opset=17, validate="load")
+
+# GPTQ (AutoGPTQ V1 / vLLM-compatible) — output to directory
+result.export("./gptq_dir/", format="gptq", group_size=128)
+
+# GGUF (llama.cpp) — auto-detected from .gguf extension
+result.export("model.gguf")
+result.export("./gguf_dir/", format="gguf", architecture="llama")
+```
+
+Or use the standalone API:
+
+```python
+from mono_quant import export_model, list_formats
+
+# See available formats
+print(list_formats())
+
+export_model(result.model, "model.onnx")
+export_model(result.model, "./gptq_dir/", format="gptq")
+```
+
+### Convert bit-width
+
+Re-quantize to a different precision without calibration data:
+
+```python
+result8 = quantize(model, bits=8, dynamic=True)
+result4 = result8.convert(bits=4)   # dynamic re-quantization
+result4.save("model_int4.pt")
+```
+
 ## CLI Usage
 
 Prefer command-line? Mono Quant includes a CLI:

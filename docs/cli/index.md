@@ -144,6 +144,113 @@ Output includes:
 - Compression ratio
 - Format differences
 
+### `export`
+
+Export a model to ONNX, GPTQ, or GGUF format.
+
+```bash
+monoquant export --model MODEL.pt --output OUTPUT [OPTIONS]
+```
+
+Format is **auto-detected** from the output path extension when `--format` is omitted:
+
+| Extension / path type | Auto-detected format |
+|-----------------------|----------------------|
+| `.onnx` | ONNX |
+| `.gguf` | GGUF |
+| directory (no extension) | GPTQ |
+
+#### Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--model` | `-m` | *required* | Path to model file (torch.save format) |
+| `--output` | `-o` | *required* | Output path or directory |
+| `--format` | `-f` | auto | Format: `onnx`, `gptq`, `gguf` |
+| `--list-formats` | | | Print available formats and exit |
+| `--opset` | | `14` | ONNX opset version (ONNX only) |
+| `--validate` | | `none` | Post-export validation: `none`, `load`, `full` (ONNX only) |
+| `--group-size` | | `128` | Quantization group size (GPTQ only) |
+| `--sym` | | `false` | Symmetric quantization (GPTQ only) |
+| `--architecture` | | auto | GGUF architecture string (GGUF only) |
+| `--config` | | | Path to HuggingFace config.json (GGUF only) |
+| `--model-param` | | | `KEY=VALUE` override, repeatable (GGUF only) |
+
+#### Examples
+
+**List available formats:**
+
+```bash
+monoquant export --list-formats
+```
+
+**ONNX — auto-detected from extension:**
+
+```bash
+monoquant export -m q_model.pt -o model.onnx
+```
+
+**ONNX — explicit format + opset:**
+
+```bash
+monoquant export -m q_model.pt -o model.onnx --format onnx --opset 17 --validate load
+```
+
+**GPTQ:**
+
+```bash
+monoquant export -m q_model.pt -o ./gptq_dir/ --format gptq --group-size 64 --sym
+```
+
+**GGUF — auto-detected from extension:**
+
+```bash
+monoquant export -m q_model.pt -o model.gguf --config ./config.json
+```
+
+**GGUF — explicit architecture:**
+
+```bash
+monoquant export -m q_model.pt -o ./gguf_dir/ --format gguf --architecture llama \
+    --model-param num_hidden_layers=32 --model-param hidden_size=4096
+```
+
+---
+
+### `convert`
+
+Convert a model to a different quantization bit-width via dynamic re-quantization.
+
+```bash
+monoquant convert INPUT OUTPUT --bits BITS
+```
+
+!!! note
+    This uses dynamic re-quantization (dequantize → re-quantize). No calibration data
+    required, but accuracy is lower than re-quantizing from the original FP32 model.
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `INPUT` | Path to model file (.pt, torch.save format) |
+| `OUTPUT` | Destination path for converted model |
+
+#### Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--bits` | `-b` | *required* | Target bit-width: 4, 8, or 16 |
+
+#### Examples
+
+```bash
+monoquant convert q_model_int8.pt q_model_int4.pt --bits 4
+monoquant convert q_model_int8.pt q_model_fp16.pt --bits 16
+```
+
+---
+
 ### `calibrate`
 
 Prepare calibration data for static quantization.

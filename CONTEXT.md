@@ -1,42 +1,47 @@
 # CONTEXT
 
 ## Current State
-**Task:** T-022–T-025 — DONE (Phase 7 complete)
-**Phase:** Phase 7 (GGUF Binary Export) — COMPLETE
+**Task:** T-026–T-029 — DONE (Phase 8 complete)
+**Phase:** Phase 8 (Unified Export API) — COMPLETE
 **Branch:** dev
 **Last Commit:** pending push
 **Date:** 2026-02-26
 
 ## Previous Session Summary
-Phase 6 (GPTQ Export, T-018–T-021) completed and committed in previous session.
-Commit: `12d6f5c`
+Phase 7 GGUF Export (T-022–T-025) completed and committed in previous session.
 
 ## Current Task State
 
-Phase 7 GGUF Export — fully implemented, 66/66 tests passing (9 skipped: gguf-py not installed):
+Phase 8 Unified Export API — fully implemented, 103/103 tests passing (9 skipped: gguf-py not installed):
 
 | Task | Description | Status |
 |------|-------------|--------|
-| T-022 | GGUFWriter — GGUF v3 binary serializer | DONE |
-| T-023 | Q4_K_S quantization — 144-byte block format | DONE |
-| T-024 | GGUFExporter + arch maps + public API + CLI + 22 tests | DONE |
-| T-025 | validate_gguf_checkpoint + manual llama.cpp procedure | DONE |
+| T-026 | export/orchestrator.py + result.export() + list_formats() | DONE |
+| T-027 | Unified CLI `export` command (replaces export/export-gptq/export-gguf) | DONE |
+| T-028 | ExportWarning, validate_export_pre/post in validators.py | DONE |
+| T-029 | result.convert(bits) + monoquant convert CLI command | DONE |
 
-**Test suite:** 66 passed, 9 skipped (gguf-py), 0 failed
+**Test suite:** 103 passed, 9 skipped (gguf-py), 0 failed
 
-Architectures supported: llama, mistral, qwen2, deepseek_v2, gpt2, generic fallback
-Known issue: llama.cpp manual validation not yet run (no binary available in CI)
+**New tests added:**
+- `tests/test_export_orchestrator.py` — 12 tests
+- `tests/test_cli_export.py` — 8 tests
+- `tests/test_export_validation.py` — 11 tests
+- `tests/test_convert.py` — 6 tests
+
+**Breaking CLI change:** `monoquant export-gptq` and `monoquant export-gguf` removed.
+Use `monoquant export --format gptq/gguf` instead. Python API unchanged.
 
 ## Next Steps
 
-1. [ ] Commit and push T-022–T-025 to dev
-2. [ ] Begin Phase 8 planning: Unified Export API (T-026–T-029)
+1. [ ] Follow commit procedure for T-026, T-027, T-028, T-029
+2. [ ] Push to dev
+3. [ ] Consider PR dev → main for v2.0
 
 ## Open Questions / Decisions Pending
 
-- Phase 8 (T-026–T-029): Unified Export API — not started; DETAIL.md stubs exist
-- llama.cpp manual test (T-025) requires llama.cpp binary; procedure documented in
-  `docs/dev/tasks/T-025/IMPL_LOG.md` but not yet executed
+- T-038 (calibration-based conversion): deferred, stub at docs/dev/tasks/T-038/DETAIL.md
+- llama.cpp manual test (T-025): still requires llama.cpp binary; procedure documented
 
 ## Blockers
 
@@ -45,8 +50,8 @@ None.
 ## Quick Links
 
 - Tasks index: docs/dev/tasks/TASKS.md
-- T-022 log: docs/dev/tasks/T-022/IMPL_LOG.md
-- T-023 log: docs/dev/tasks/T-023/IMPL_LOG.md
-- T-024 log: docs/dev/tasks/T-024/IMPL_LOG.md
-- T-025 log: docs/dev/tasks/T-025/IMPL_LOG.md
+- T-026 log: docs/dev/tasks/T-026/IMPL_LOG.md
+- T-027 log: docs/dev/tasks/T-027/IMPL_LOG.md
+- T-028 log: docs/dev/tasks/T-028/IMPL_LOG.md
+- T-029 log: docs/dev/tasks/T-029/IMPL_LOG.md
 - Architecture: docs/dev/ARCHITECTURE.md
