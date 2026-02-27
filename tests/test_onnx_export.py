@@ -208,7 +208,7 @@ def test_export_onnx_dynamo_embedding_model_succeeds(tmp_path: Path) -> None:
 
 
 def test_export_onnx_dynamo_qdq_nodes_present(tmp_path: Path) -> None:
-    """T-040: dynamo-exported graph contains QDQ nodes — QDQ inserter works on both paths."""
+    """T-040: dynamo-exported flat MLP contains QDQ nodes (Gemm path — named weights)."""
     pytest.importorskip("onnxscript", reason="onnxscript not installed; pip install mono-quant[onnx]")
     q_model = _make_int8_model()
     out = tmp_path / "model_dynamo_qdq.onnx"
@@ -221,6 +221,88 @@ def test_export_onnx_dynamo_qdq_nodes_present(tmp_path: Path) -> None:
     op_types = {node.op_type for node in model_proto.graph.node}
     assert "QuantizeLinear" in op_types, f"QuantizeLinear not found in dynamo graph. Ops: {op_types}"
     assert "DequantizeLinear" in op_types, f"DequantizeLinear not found in dynamo graph. Ops: {op_types}"
+
+
+def test_build_dynamo_name_map_recovers_transposed_weight() -> None:
+    """T-041: _build_dynamo_name_map matches val_N anonymous initializer to named param.
+
+    Simulates the MatMul(x, w.T) dynamo lowering pattern: constructs a minimal ONNX
+    proto where a weight is stored transposed under an anonymous name, then verifies
+    the function correctly identifies the original parameter name and transpose flag.
+    """
+    import numpy as np
+    from onnx import TensorProto, helper, numpy_helper
+
+    from mono_quant.export.common.qdq_inserter import _build_dynamo_name_map
+
+    # Simple model with a known square weight.
+    model = nn.Linear(8, 8, bias=False)
+    weight_np = model.weight.detach().float().numpy()  # [8, 8]
+
+    # Build a minimal ONNX proto with the weight stored TRANSPOSED as "val_7".
+    weight_t = weight_np.T.astype(np.float32)
+    init_transposed = numpy_helper.from_array(weight_t, name="val_7")
+    # Also add a small constant that should be ignored (not weight-like).
+    init_small = numpy_helper.from_array(np.zeros((4,), dtype=np.float32), name="val_2")
+
+    X = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 8])
+    Y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 8])
+    node = helper.make_node("MatMul", inputs=["x", "val_7"], outputs=["y"])
+    graph = helper.make_graph(
+        [node], "test_graph", [X], [Y], initializer=[init_transposed, init_small]
+    )
+    proto = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 14)])
+
+    name_map = _build_dynamo_name_map(model, proto)
+
+    assert "val_7" in name_map, f"Expected 'val_7' in name_map, got keys: {list(name_map)}"
+    param_name, is_transposed = name_map["val_7"]
+    assert param_name == "weight", f"Expected param 'weight', got '{param_name}'"
+    assert is_transposed is True, "Expected is_transposed=True for w.T stored as val_7"
+    # Small constant must NOT appear in the map.
+    assert "val_2" not in name_map, "Small 1-D constant should not be in name_map"
+
+
+def test_export_onnx_dynamo_qdq_explicit_transpose(tmp_path: Path) -> None:
+    """T-041: QDQ nodes inserted for a model that uses weight.T in forward.
+
+    This exercises the val_N recovery path: the explicit weight.t() call causes
+    dynamo to constant-fold the transposed weight into an anonymous initializer.
+    _build_dynamo_name_map recovers the name and insert_qdq_nodes wraps it.
+    """
+    pytest.importorskip("onnxscript", reason="onnxscript not installed; pip install mono-quant[onnx]")
+    from mono_quant import dynamic_quantize
+    from mono_quant.export.onnx import ONNXExporter
+
+    class TransposeMatMulModel(nn.Module):
+        """Uses explicit weight.t() in MatMul — forces val_N naming in dynamo export."""
+
+        def __init__(self):
+            super().__init__()
+            self.proj = nn.Linear(32, 32, bias=False)
+
+        def forward(self, x):
+            # F.linear calls this internally; writing it explicitly ensures dynamo
+            # stores the transposed weight as a constant (not a Gemm with transB=1).
+            return torch.matmul(x, self.proj.weight.t())
+
+    model = TransposeMatMulModel()
+    q_model, _ = dynamic_quantize(model)
+    out = tmp_path / "model_transpose_dynamo.onnx"
+    dummy = torch.randn(1, 32)
+
+    exporter = ONNXExporter()
+    exporter.export(q_model, out, dummy_input=dummy, dynamo=True)
+
+    assert out.exists(), f"Expected {out} to exist after export"
+    model_proto = onnx.load(str(out))
+    op_types = {node.op_type for node in model_proto.graph.node}
+    assert "QuantizeLinear" in op_types, (
+        f"QuantizeLinear not found — name map recovery may have failed. Ops: {op_types}"
+    )
+    assert "DequantizeLinear" in op_types, (
+        f"DequantizeLinear not found — name map recovery may have failed. Ops: {op_types}"
+    )
 
 
 def test_export_onnx_hf_model_use_cache_restored(tmp_path: Path) -> None:

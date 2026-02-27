@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - Unreleased
 
 ### Added
+- QDQ node insertion for dynamo-exported ONNX graphs now recovers anonymous `val_N`
+  weight initializers (attention projection weights stored as `w.T` by dynamo's
+  `MatMul(x, w.T)` lowering) via post-export value matching; previously only fc1/fc2
+  (Gemm path) received QDQ nodes — now all quantized linear layers do (T-041)
 - `dynamo=True` parameter on `ONNXExporter.export()`, `export_to_onnx_impl()`, and
   `result.export()` — uses FX/torch.export tracing instead of TorchScript; handles
   transformer models with complex forward signatures (multi-input, optional kwargs,

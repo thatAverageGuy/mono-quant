@@ -112,7 +112,7 @@
 
 | ID | Summary | Status | Depends On | Detail |
 |----|---------|--------|------------|--------|
-| T-041 | Fix QDQ node insertion for dynamo-exported ONNX graphs | TODO | T-040, BF-017 | docs/dev/tasks/T-041/ |
+| T-041 | Fix QDQ node insertion for dynamo-exported ONNX graphs | DONE | T-040, BF-017 | docs/dev/tasks/T-041/ |
 | T-038 | Calibration-based conversion (result.convert with calibration_data) | TODO | T-029 | docs/dev/tasks/T-038/ |
 
 ---

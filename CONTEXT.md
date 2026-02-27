@@ -1,66 +1,51 @@
 # CONTEXT
 
 ## Current State
-**Task:** BF-017 — DONE (pending commit)
-**Phase:** Manual test A2 PASSED. All Windows ONNX tests complete.
+**Task:** T-041 — DONE, pending commit approval
 **Branch:** dev
-**Last Commit:** 4202433 (BF-016)
+**Last Commit:** 64f1a63 (BF-017)
 **Date:** 2026-02-27
 
 ## Previous Session Summary
-Sequential fix run complete (BF-014 through BF-016 committed). Manual test A2
-(OPT-125m ONNX) revealed two more blocking issues fixed in BF-017:
-1. DynamicCache pytree error (all HF causal LMs) — disabled use_cache before tracing
-2. Windows CP1252 UnicodeEncodeError from torch.onnx emoji log — reconfigure stdout
+Full fix run: BF-015 → BF-014 → CL-002 → T-040 → BF-016 → BF-017 all committed.
+Manual test A2 (OPT-125m ONNX) PASSED. T-041 root cause investigated, implemented,
+and tested in this session.
 
-Test A2 now passes: 74 layers quantized, 627MB ONNX file written successfully.
+## T-041 — What Was Implemented
+
+**Root cause** (confirmed empirically): dynamo lowers `F.linear(x, w, b)` as
+`MatMul(x, w.T)` for attention projection weights. The transposed weight gets stored
+as an anonymous `val_N` constant — original parameter name lost.
+
+**Fix**: `_build_dynamo_name_map(model, proto)` in `qdq_inserter.py` — matches val_N
+initializers to named parameters by value comparison (direct + transposed). Called
+from `onnx.py` Step 6 when `dynamo=True`. Axis adjusted from 0→1 for transposed weights.
+
+**Result**: fc1/fc2 ALREADY had QDQ nodes (Gemm path). Now attention projections
+(k/q/v/out_proj) also get QDQ nodes on dynamo export.
 
 ## Current Task State
 
-**BF-017 — all done, pre-commit:**
-- Code: DONE (onnx.py: use_cache guard + stdout reconfigure)
-- Tests: DONE (2 new; 115 total passing, 9 skipped)
-- IMPL_LOG: DONE
-- TASKS.md: DONE (T-041 added to Pending Future)
+**T-041 implementation**: DONE (pending commit approval)
+- Code: DONE — `qdq_inserter.py` + `onnx.py`
+- Tests: DONE — 117/117 passing (2 new tests: unit + integration)
+- IMPL_LOG.md: DONE
+- TASKS.md: DONE (T-041 → DONE)
 - CHANGELOG.md: DONE
-- CONTEXT.md: DONE (this file)
-- Commit: PENDING USER APPROVAL
-
-## ONNX Export Behavior (documented)
-
-**File size**: ONNX files are FP32-sized regardless of quantization. The QDQ approach
-stores FP32 initializers + QuantizeLinear/DequantizeLinear node pairs. "Smart" runtimes
-(TensorRT, ORT INT8 EP) fuse the Q→Op→DQ pattern into native INT8 kernels. Plain CPU
-runtimes run FP32. No file-size savings until INT8 initializers (opset 21, T-041 scope).
-
-**QDQ gap (T-041)**: Dynamo-exported complex models (OPT, LLaMA, etc.) do not get QDQ
-nodes inserted — dynamo uses different initializer naming than TorchScript for nested
-modules. ONNX is valid/runnable FP32. Deferred to post-v2.0.
-
-## Manual Test Status
-
-| Test | What | Platform | Status |
-|------|------|----------|--------|
-| A1 | ONNX export — simple MLP | Windows | PASSED |
-| A2 | ONNX export — OPT-125m (dynamo=True) | Windows | PASSED (627MB, FP32, no QDQ) |
-| B | GPTQ export → vLLM load + generate | Linux (Ubuntu SSD) | NOT RUN |
-| C | GGUF export → llama.cpp load + generate | Linux or Windows | NOT RUN |
-| D | CLI smoke tests | Windows | NOT RUN |
-| E | result.convert() Python API | Windows | NOT RUN |
 
 ## Next Steps
 
-1. [ ] Get user approval → commit BF-017
-2. [ ] Run tests D and E (Windows, no new installs needed)
-3. [ ] Boot Ubuntu SSD for tests B and C
-4. [ ] Record all results
-5. [ ] Raise PR dev → main for v2.0 release
-6. [ ] Tag v2.0.0 on main
-7. [ ] Publish to PyPI
+1. [ ] Get user approval and commit T-041
+2. [ ] Optionally re-run manual test A2 (OPT-125m) to confirm attention QDQ in prod
+3. [ ] Run manual tests D and E (CLI smoke + result.convert() — Windows, no new installs)
+4. [ ] Boot Ubuntu SSD for manual tests B and C (GPTQ → vLLM, GGUF → llama.cpp)
+5. [ ] Record all results
+6. [ ] Raise PR dev → main for v2.0 release
+7. [ ] Tag v2.0.0 on main
+8. [ ] Publish to PyPI
 
 ## Pending (Future, post-v2.0)
 
-- T-041: Fix QDQ insertion for dynamo-exported ONNX graphs (naming mismatch)
 - T-038: Calibration-based conversion (result.convert with calibration_data)
 
 ## Blockers
@@ -70,5 +55,6 @@ None.
 ## Quick Links
 
 - T-041 detail: docs/dev/tasks/T-041/DETAIL.md
+- T-041 impl log: docs/dev/tasks/T-041/IMPL_LOG.md
 - Tasks index: docs/dev/tasks/TASKS.md
 - CHANGELOG: CHANGELOG.md

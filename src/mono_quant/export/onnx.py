@@ -64,6 +64,7 @@ class ONNXExporter(BaseExporter):
 
         from mono_quant.core.quantizers import revert_to_standard_modules
         from mono_quant.export.common.qdq_inserter import (
+            _build_dynamo_name_map,
             collect_quantization_params,
             insert_qdq_nodes,
         )
@@ -171,10 +172,15 @@ class ONNXExporter(BaseExporter):
                             "result.export('out.onnx', dynamo=True)"
                         ) from e
 
-            # Step 6: Load proto, insert QDQ nodes
+            # Step 6: Load proto, insert QDQ nodes.
+            # For dynamo exports, build a name map to recover anonymous val_N
+            # initializers (attention projection weights stored as w.T).
             model_proto = onnx.load(str(tmp_path))
             if qdq_qparams:
-                model_proto = insert_qdq_nodes(model_proto, qdq_qparams)
+                dynamo_name_map = (
+                    _build_dynamo_name_map(fp32_model, model_proto) if dynamo else None
+                )
+                model_proto = insert_qdq_nodes(model_proto, qdq_qparams, dynamo_name_map)
 
             # Step 7: Attach metadata
             metadata = self.build_metadata(model, opset=opset, has_int4=has_int4)
