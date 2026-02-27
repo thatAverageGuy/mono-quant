@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - Unreleased
 
 ### Added
+- GGUF export now supports 17 architectures (was 5): added OPT, Phi-2, Phi-3/4,
+  ChatGLM/GLM-4, Falcon (7B/40B/180B), Gemma, Gemma2, StarCoder, StarCoder2,
+  BLOOM, MPT, Command-R, and Mixtral (as LLaMA alias); models from these families
+  now receive correctly named GGUF tensors instead of falling through to generic
+  sequential naming (T-042)
 - QDQ node insertion for dynamo-exported ONNX graphs now recovers anonymous `val_N`
   weight initializers (attention projection weights stored as `w.T` by dynamo's
   `MatMul(x, w.T)` lowering) via post-export value matching; previously only fc1/fc2

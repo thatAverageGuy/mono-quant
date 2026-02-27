@@ -141,6 +141,11 @@ monoquant export -m q_model.pt -o model.gguf --config ./config.json
 monoquant export --list-formats
 ```
 
+**GGUF supported architectures** (auto-detected from `config.json` `model_type`):
+`llama`, `mistral`, `mixtral`, `qwen2`, `deepseek_v2`, `opt`, `phi`/`phi3`,
+`chatglm`/`glm4`, `falcon`, `gemma`, `gemma2`, `gpt_bigcode` (StarCoder),
+`starcoder2`, `bloom`, `mpt`, `cohere` (Command-R)
+
 ### Bit-Width Conversion
 
 ```python

@@ -357,6 +357,99 @@ def test_gguf_export_llama_tensor_names() -> None:
         assert result == expected, f"For '{pt_name}': expected '{expected}', got '{result}'"
 
 
+def test_gguf_arch_maps_detect_architecture() -> None:
+    """detect_architecture correctly maps all supported HF model_type strings."""
+    from mono_quant.export.gguf.arch_maps import detect_architecture
+    cases = [
+        ("llama", "llama"), ("mistral", "llama"), ("mixtral", "llama"),
+        ("qwen2", "qwen2"), ("deepseek_v2", "deepseek2"), ("gpt2", "gpt2"),
+        ("opt", "opt"),
+        ("phi", "phi2"), ("phi-msft", "phi2"), ("phi3", "phi3"),
+        ("chatglm", "chatglm"), ("glm4", "chatglm"),
+        ("falcon", "falcon"), ("RefinedWebModel", "falcon"), ("RefinedWeb", "falcon"),
+        ("gemma", "gemma"), ("gemma2", "gemma2"),
+        ("gpt_bigcode", "starcoder"), ("starcoder2", "starcoder2"),
+        ("bloom", "bloom"), ("mpt", "mpt"), ("cohere", "command-r"),
+        ("unknown_xyz", "generic"), (None, "generic"),
+    ]
+    for model_type, expected in cases:
+        got = detect_architecture(model_type)
+        assert got == expected, f"detect_architecture({model_type!r}): expected {expected!r}, got {got!r}"
+
+
+def test_gguf_arch_maps_new_tensor_names() -> None:
+    """map_tensor_name produces correct GGUF names for all new T-042 architectures."""
+    import warnings
+    from mono_quant.export.gguf.arch_maps import map_tensor_name, reset_generic_counter
+
+    def mn(arch, pt_name):
+        reset_generic_counter(arch)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return map_tensor_name(pt_name, arch)
+
+    # OPT
+    assert mn("opt", "model.decoder.embed_tokens.weight") == "token_embd.weight"
+    assert mn("opt", "model.decoder.layers.0.self_attn.q_proj.weight") == "blk.0.attn_q.weight"
+    assert mn("opt", "model.decoder.layers.0.self_attn.q_proj.bias") == "blk.0.attn_q.bias"
+    assert mn("opt", "model.decoder.layers.2.fc1.weight") == "blk.2.ffn_up.weight"
+    assert mn("opt", "model.decoder.final_layer_norm.weight") == "output_norm.weight"
+    assert mn("opt", "lm_head.weight") == "output.weight"
+
+    # Phi-2 new layout
+    assert mn("phi2", "model.layers.0.self_attn.q_proj.weight") == "blk.0.attn_q.weight"
+    assert mn("phi2", "model.layers.0.self_attn.q_proj.bias") == "blk.0.attn_q.bias"
+    assert mn("phi2", "model.layers.1.mlp.fc1.weight") == "blk.1.ffn_up.weight"
+    assert mn("phi2", "lm_head.linear.weight") == "output.weight"
+    # Phi-2 old layout
+    assert mn("phi2", "transformer.embd.wte.weight") == "token_embd.weight"
+    assert mn("phi2", "transformer.h.0.mixer.Wqkv.weight") == "blk.0.attn_qkv.weight"
+
+    # Phi-3 (fused projections)
+    assert mn("phi3", "model.layers.0.self_attn.qkv_proj.weight") == "blk.0.attn_qkv.weight"
+    assert mn("phi3", "model.layers.0.mlp.gate_up_proj.weight") == "blk.0.ffn_up.weight"
+    assert mn("phi3", "model.layers.0.mlp.down_proj.weight") == "blk.0.ffn_down.weight"
+
+    # ChatGLM
+    assert mn("chatglm", "transformer.embedding.word_embeddings.weight") == "token_embd.weight"
+    assert mn("chatglm", "transformer.encoder.layers.0.self_attention.query_key_value.weight") == "blk.0.attn_qkv.weight"
+    assert mn("chatglm", "transformer.encoder.layers.0.mlp.dense_h_to_4h.weight") == "blk.0.ffn_up.weight"
+    assert mn("chatglm", "transformer.output_layer.weight") == "output.weight"
+
+    # Falcon 7B + 40B norms
+    assert mn("falcon", "transformer.h.0.input_layernorm.weight") == "blk.0.attn_norm.weight"
+    assert mn("falcon", "transformer.h.0.ln_attn.weight") == "blk.0.attn_norm.weight"
+    assert mn("falcon", "transformer.h.0.ln_mlp.weight") == "blk.0.attn_norm_2.weight"
+    assert mn("falcon", "transformer.h.0.self_attention.query_key_value.weight") == "blk.0.attn_qkv.weight"
+
+    # Gemma
+    assert mn("gemma", "model.layers.0.mlp.gate_proj.weight") == "blk.0.ffn_gate.weight"
+
+    # Gemma2 (extra norms override base)
+    assert mn("gemma2", "model.layers.0.pre_feedforward_layernorm.weight") == "blk.0.ffn_norm.weight"
+    assert mn("gemma2", "model.layers.0.post_feedforward_layernorm.weight") == "blk.0.post_ffw_norm.weight"
+    assert mn("gemma2", "model.layers.0.self_attn.q_proj.weight") == "blk.0.attn_q.weight"
+
+    # StarCoder (position embeddings)
+    assert mn("starcoder", "transformer.wpe.weight") == "position_embd.weight"
+    assert mn("starcoder", "transformer.h.0.attn.c_attn.weight") == "blk.0.attn_qkv.weight"
+
+    # StarCoder2
+    assert mn("starcoder2", "model.layers.0.mlp.c_fc.weight") == "blk.0.ffn_up.weight"
+
+    # BLOOM (post-embedding norm)
+    assert mn("bloom", "transformer.word_embeddings_layernorm.weight") == "token_embd_norm.weight"
+    assert mn("bloom", "transformer.h.0.self_attention.query_key_value.weight") == "blk.0.attn_qkv.weight"
+
+    # MPT (blocks.N naming)
+    assert mn("mpt", "transformer.blocks.0.attn.Wqkv.weight") == "blk.0.attn_qkv.weight"
+    assert mn("mpt", "transformer.blocks.0.ffn.up_proj.weight") == "blk.0.ffn_up.weight"
+
+    # Command-R (per-head norms)
+    assert mn("command-r", "model.layers.0.self_attn.q_norm.weight") == "blk.0.attn_q_norm.weight"
+    assert mn("command-r", "model.layers.0.mlp.gate_proj.weight") == "blk.0.ffn_gate.weight"
+
+
 def test_gguf_export_unknown_arch_warns(tmp_path: Path) -> None:
     """Unknown architecture emits a warning and uses generic tensor naming."""
     model = nn.Sequential(nn.Linear(256, 64))

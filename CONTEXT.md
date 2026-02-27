@@ -1,48 +1,52 @@
 # CONTEXT
 
 ## Current State
-**Task:** T-041 — DONE, pending commit approval
+**Task:** T-042 (GGUF arch_maps expansion) — DONE, pending commit approval
 **Branch:** dev
-**Last Commit:** 64f1a63 (BF-017)
+**Last Commit:** dfabf65 (T-041)
 **Date:** 2026-02-27
 
 ## Previous Session Summary
-Full fix run: BF-015 → BF-014 → CL-002 → T-040 → BF-016 → BF-017 all committed.
-Manual test A2 (OPT-125m ONNX) PASSED. T-041 root cause investigated, implemented,
-and tested in this session.
+T-041 committed (dfabf65). Manual tests D and E written and passed. Manual test
+procedures for B (GPTQ→vLLM) and C (GGUF→llama.cpp) rewritten for Ubuntu.
+T-042 implemented: arch_maps.py expanded from 5 to 17 supported GGUF architectures.
 
-## T-041 — What Was Implemented
+## T-042 — What Was Implemented
 
-**Root cause** (confirmed empirically): dynamo lowers `F.linear(x, w, b)` as
-`MatMul(x, w.T)` for attention projection weights. The transposed weight gets stored
-as an anonymous `val_N` constant — original parameter name lost.
+Rewrote `src/mono_quant/export/gguf/arch_maps.py`:
+- Added 12 new architectures: OPT, Phi-2, Phi-3/4, ChatGLM/GLM-4, Falcon,
+  Gemma, Gemma2, StarCoder, StarCoder2, BLOOM, MPT, Command-R
+- Added `mixtral → "llama"` alias
+- Fixed `detect_architecture` bug: `"RefinedWebModel"/"RefinedWeb"` keys were
+  mixed-case but lookup uses `.lower()` — fixed to `"refinedwebmodel"/"refinedweb"`
+- All 117 tests pass
 
-**Fix**: `_build_dynamo_name_map(model, proto)` in `qdq_inserter.py` — matches val_N
-initializers to named parameters by value comparison (direct + transposed). Called
-from `onnx.py` Step 6 when `dynamo=True`. Axis adjusted from 0→1 for transposed weights.
+## Manual Test Results
 
-**Result**: fc1/fc2 ALREADY had QDQ nodes (Gemm path). Now attention projections
-(k/q/v/out_proj) also get QDQ nodes on dynamo export.
+| Test | Status | Notes |
+|------|--------|-------|
+| A2 (OPT-125m ONNX) | PASS | Dynamo + QDQ + full validation |
+| D (CLI smoke) | PASS | 12/12 checks pass |
+| E (result.convert()) | PASS | 10/10 checks pass |
+| B (GPTQ → vLLM) | PENDING | Requires Ubuntu SSD + CUDA GPU |
+| C (GGUF → llama.cpp) | PENDING | Requires Ubuntu SSD |
 
-## Current Task State
+### Findings from Tests D/E (non-blocking for v2.0)
 
-**T-041 implementation**: DONE (pending commit approval)
-- Code: DONE — `qdq_inserter.py` + `onnx.py`
-- Tests: DONE — 117/117 passing (2 new tests: unit + integration)
-- IMPL_LOG.md: DONE
-- TASKS.md: DONE (T-041 → DONE)
-- CHANGELOG.md: DONE
+1. **BF-018 candidate**: `mq validate` crashes on Windows with cp1252 charmap when printing `✓`. Workaround: `PYTHONIOENCODING=utf-8` in subprocess env.
+2. **Known limitation**: FP16 converted models cannot run a forward pass (dequantize() → fp32 weight, bias stays fp16 → matmul dtype mismatch). FP16 is storage-only.
+3. **INT4 dynamic uses qint8**: `quantize(model, bits=4, dynamic=True)` creates `QuantizedLinear`, not `QuantizedLinearInt4`. Expected.
+4. **mq quantize input format**: Requires full `nn.Module` (torch.save(model, path)), not a state_dict.
 
 ## Next Steps
 
-1. [ ] Get user approval and commit T-041
-2. [ ] Optionally re-run manual test A2 (OPT-125m) to confirm attention QDQ in prod
-3. [ ] Run manual tests D and E (CLI smoke + result.convert() — Windows, no new installs)
-4. [ ] Boot Ubuntu SSD for manual tests B and C (GPTQ → vLLM, GGUF → llama.cpp)
-5. [ ] Record all results
-6. [ ] Raise PR dev → main for v2.0 release
-7. [ ] Tag v2.0.0 on main
-8. [ ] Publish to PyPI
+1. [ ] Get user approval and commit T-042
+2. [ ] (Optional) Fix BF-018: mq validate Windows charmap crash on ✓
+3. [ ] Boot Ubuntu SSD for manual tests B and C (GPTQ → vLLM, GGUF → llama.cpp)
+4. [ ] Record B/C results
+5. [ ] Raise PR dev → main for v2.0 release
+6. [ ] Tag v2.0.0 on main
+7. [ ] Publish to PyPI
 
 ## Pending (Future, post-v2.0)
 
@@ -54,7 +58,7 @@ None.
 
 ## Quick Links
 
-- T-041 detail: docs/dev/tasks/T-041/DETAIL.md
-- T-041 impl log: docs/dev/tasks/T-041/IMPL_LOG.md
+- T-042 detail: docs/dev/tasks/T-042/DETAIL.md
+- T-042 impl log: docs/dev/tasks/T-042/IMPL_LOG.md
 - Tasks index: docs/dev/tasks/TASKS.md
 - CHANGELOG: CHANGELOG.md

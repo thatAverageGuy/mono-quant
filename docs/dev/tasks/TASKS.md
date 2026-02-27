@@ -8,10 +8,12 @@
 
 | ID | Summary | Status | Depends On | Detail |
 |----|---------|--------|------------|--------|
+
 ## Completed (Manual test bug fixes)
 
 | ID | Summary | Completed | Detail |
 |----|---------|-----------|--------|
+| T-042 | Expand GGUF arch_maps — OPT, Phi-2/3, ChatGLM, Falcon, Gemma/2, StarCoder/2, BLOOM, MPT, Command-R | 2026-02-27 | docs/dev/tasks/T-042/ |
 | BF-017 | Fix HF transformer ONNX export — DynamicCache + Windows emoji encoding | 2026-02-27 | docs/dev/tasks/BF-017/ |
 | BF-016 | Fix validate_onnx_model full-level hardcodes float32 dummy | 2026-02-27 | docs/dev/tasks/BF-016/ |
 | T-040 | dynamo=True ONNX export path for transformer models | 2026-02-27 | docs/dev/tasks/T-040/ |
